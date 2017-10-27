@@ -43,7 +43,8 @@ static inline int vc1_has_MVTYPEMB_bitplane(VC1Context *v)
 {
     if (v->mv_type_is_raw)
         return 0;
-    return v->s.pict_type == AV_PICTURE_TYPE_P &&
+    return v->fcm == PROGRESSIVE &&
+           (v->s.pict_type == AV_PICTURE_TYPE_P && !v->p_frame_skipped) &&
            (v->mv_mode == MV_PMODE_MIXED_MV ||
             (v->mv_mode == MV_PMODE_INTENSITY_COMP &&
              v->mv_mode2 == MV_PMODE_MIXED_MV));
@@ -54,8 +55,9 @@ static inline int vc1_has_SKIPMB_bitplane(VC1Context *v)
 {
     if (v->skip_is_raw)
         return 0;
-    return v->s.pict_type == AV_PICTURE_TYPE_P ||
-           (v->s.pict_type == AV_PICTURE_TYPE_B && !v->bi_type);
+    return (v->fcm == PROGRESSIVE || v->fcm == ILACE_FRAME) &&
+           ((v->s.pict_type == AV_PICTURE_TYPE_P && !v->p_frame_skipped) ||
+            (v->s.pict_type == AV_PICTURE_TYPE_B && !v->bi_type));
 }
 
 /** Check whether the DIRECTMB bitplane is present */
@@ -63,7 +65,8 @@ static inline int vc1_has_DIRECTMB_bitplane(VC1Context *v)
 {
     if (v->dmb_is_raw)
         return 0;
-    return v->s.pict_type == AV_PICTURE_TYPE_B && !v->bi_type;
+    return (v->fcm == PROGRESSIVE || v->fcm == ILACE_FRAME) &&
+           (v->s.pict_type == AV_PICTURE_TYPE_B && !v->bi_type);
 }
 
 /** Check whether the ACPRED bitplane is present */
@@ -88,6 +91,25 @@ static inline int vc1_has_OVERFLAGS_bitplane(VC1Context *v)
            v->condover == CONDOVER_SELECT;
 }
 
+/** Check whether the FIELDTX bitplane is present */
+static inline int vc1_has_FIELDTX_bitplane(const VC1Context *v)
+{
+    if (v->fieldtx_is_raw)
+        return 0;
+    return v->fcm == ILACE_FRAME &&
+           (v->s.pict_type == AV_PICTURE_TYPE_I ||
+            (v->s.pict_type == AV_PICTURE_TYPE_B && v->bi_type));
+}
+
+/** Check whether the FORWARDMB bitplane is present */
+static inline int vc1_has_FORWARDMB_bitplane(const VC1Context *v)
+{
+    if (v->fmb_is_raw)
+        return 0;
+    return v->fcm == ILACE_FIELD &&
+           (v->s.pict_type == AV_PICTURE_TYPE_B && !v->bi_type);
+}
+
 /** Reconstruct bitstream PTYPE (7.1.1.4, index into Table-35) */
 static int vc1_get_PTYPE(VC1Context *v)
 {
@@ -100,10 +122,22 @@ static int vc1_get_PTYPE(VC1Context *v)
     return 0;
 }
 
+/** Reconstruct bitstream FPTYPE (9.1.1.42, index into Table-105) */
+static int vc1_get_FPTYPE(const VC1Context *v)
+{
+    const MpegEncContext *s = &v->s;
+    switch (s->pict_type) {
+    case AV_PICTURE_TYPE_I: return 0;
+    case AV_PICTURE_TYPE_P: return 3;
+    case AV_PICTURE_TYPE_B: return v->bi_type ? 7 : 4;
+    }
+    return 0;
+}
+
 /** Reconstruct bitstream MVMODE (7.1.1.32) */
 static inline VAMvModeVC1 vc1_get_MVMODE(VC1Context *v)
 {
-    if (v->s.pict_type == AV_PICTURE_TYPE_P ||
+    if ((v->s.pict_type == AV_PICTURE_TYPE_P && !v->p_frame_skipped) ||
         (v->s.pict_type == AV_PICTURE_TYPE_B && !v->bi_type))
         return get_VAMvModeVC1(v->mv_mode);
     return 0;
@@ -112,8 +146,74 @@ static inline VAMvModeVC1 vc1_get_MVMODE(VC1Context *v)
 /** Reconstruct bitstream MVMODE2 (7.1.1.33) */
 static inline VAMvModeVC1 vc1_get_MVMODE2(VC1Context *v)
 {
-    if (v->s.pict_type == AV_PICTURE_TYPE_P && v->mv_mode == MV_PMODE_INTENSITY_COMP)
+    if ((v->s.pict_type == AV_PICTURE_TYPE_P && !v->p_frame_skipped) &&
+        v->mv_mode == MV_PMODE_INTENSITY_COMP)
         return get_VAMvModeVC1(v->mv_mode2);
+    return 0;
+}
+
+static inline int vc1_get_INTCOMPFIELD(const VC1Context *v)
+{
+    if ((v->s.pict_type == AV_PICTURE_TYPE_P && !v->p_frame_skipped) &&
+        v->fcm == ILACE_FIELD &&
+        v->mv_mode == MV_PMODE_INTENSITY_COMP)
+        switch (v->intcompfield) {
+        case 1: return 1;
+        case 2: return 2;
+        case 3: return 0;
+        }
+    return 0;
+}
+
+static inline int vc1_get_LUMSCALE(const VC1Context *v)
+{
+    if (v->s.pict_type == AV_PICTURE_TYPE_P && !v->p_frame_skipped) {
+        if ((v->fcm == PROGRESSIVE && v->mv_mode == MV_PMODE_INTENSITY_COMP) ||
+            (v->fcm == ILACE_FRAME && v->intcomp))
+            return v->lumscale;
+        else if (v->fcm == ILACE_FIELD && v->mv_mode == MV_PMODE_INTENSITY_COMP)
+            switch (v->intcompfield) {
+            case 1: return v->lumscale;
+            case 2: return v->lumscale2;
+            case 3: return v->lumscale;
+        }
+    }
+    return 0;
+}
+
+static inline int vc1_get_LUMSHIFT(const VC1Context *v)
+{
+    if (v->s.pict_type == AV_PICTURE_TYPE_P && !v->p_frame_skipped) {
+        if ((v->fcm == PROGRESSIVE && v->mv_mode == MV_PMODE_INTENSITY_COMP) ||
+            (v->fcm == ILACE_FRAME && v->intcomp))
+            return v->lumshift;
+        else if (v->fcm == ILACE_FIELD && v->mv_mode == MV_PMODE_INTENSITY_COMP)
+            switch (v->intcompfield) {
+            case 1: return v->lumshift;
+            case 2: return v->lumshift2;
+            case 3: return v->lumshift;
+        }
+    }
+    return 0;
+}
+
+static inline int vc1_get_LUMSCALE2(const VC1Context *v)
+{
+    if ((v->s.pict_type == AV_PICTURE_TYPE_P && !v->p_frame_skipped) &&
+        v->fcm == ILACE_FIELD &&
+        v->mv_mode == MV_PMODE_INTENSITY_COMP &&
+        v->intcompfield == 3)
+        return v->lumscale2;
+    return 0;
+}
+
+static inline int vc1_get_LUMSHIFT2(const VC1Context *v)
+{
+    if ((v->s.pict_type == AV_PICTURE_TYPE_P && !v->p_frame_skipped) &&
+        v->fcm == ILACE_FIELD &&
+        v->mv_mode == MV_PMODE_INTENSITY_COMP &&
+        v->intcompfield == 3)
+        return v->lumshift2;
     return 0;
 }
 
@@ -189,52 +289,55 @@ static int vaapi_vc1_start_frame(AVCodecContext *avctx, av_unused const uint8_t 
     pic_param->range_mapping_fields.bits.chroma_flag                = v->range_mapuv_flag;
     pic_param->range_mapping_fields.bits.chroma                     = v->range_mapuv;
     pic_param->b_picture_fraction                                   = v->bfraction_lut_index;
-    pic_param->cbp_table                                            = v->cbpcy_vlc ? v->cbpcy_vlc - ff_vc1_cbpcy_p_vlc : 0;
-    pic_param->mb_mode_table                                        = 0; /* XXX: interlaced frame */
+    pic_param->cbp_table                                            = (v->fcm == PROGRESSIVE ? v->cbptab : v->icbptab);
+    pic_param->mb_mode_table                                        = v->mbmodetab;
     pic_param->range_reduction_frame                                = v->rangeredfrm;
     pic_param->rounding_control                                     = v->rnd;
     pic_param->post_processing                                      = v->postproc;
     pic_param->picture_resolution_index                             = v->respic;
-    pic_param->luma_scale                                           = v->lumscale;
-    pic_param->luma_shift                                           = v->lumshift;
+    pic_param->luma_scale                                           = vc1_get_LUMSCALE(v);
+    pic_param->luma_shift                                           = vc1_get_LUMSHIFT(v);
+    pic_param->luma_scale2                                          = vc1_get_LUMSCALE2(v);
+    pic_param->luma_shift2                                          = vc1_get_LUMSHIFT2(v);
+    pic_param->intensity_compensation_field                         = vc1_get_INTCOMPFIELD(v);
     pic_param->picture_fields.value                                 = 0; /* reset all bits */
-    pic_param->picture_fields.bits.picture_type                     = vc1_get_PTYPE(v);
+    pic_param->picture_fields.bits.picture_type                     = (v->fcm == ILACE_FIELD ? vc1_get_FPTYPE(v) : vc1_get_PTYPE(v));
     pic_param->picture_fields.bits.frame_coding_mode                = v->fcm;
     pic_param->picture_fields.bits.top_field_first                  = v->tff;
-    pic_param->picture_fields.bits.is_first_field                   = v->fcm == 0; /* XXX: interlaced frame */
-    pic_param->picture_fields.bits.intensity_compensation           = v->mv_mode == MV_PMODE_INTENSITY_COMP;
+    pic_param->picture_fields.bits.is_first_field                   = !v->second_field;
+    pic_param->picture_fields.bits.intensity_compensation           = v->intcomp;
     pic_param->raw_coding.value                                     = 0; /* reset all bits */
     pic_param->raw_coding.flags.mv_type_mb                          = v->mv_type_is_raw;
     pic_param->raw_coding.flags.direct_mb                           = v->dmb_is_raw;
     pic_param->raw_coding.flags.skip_mb                             = v->skip_is_raw;
-    pic_param->raw_coding.flags.field_tx                            = 0; /* XXX: interlaced frame */
-    pic_param->raw_coding.flags.forward_mb                          = 0; /* XXX: interlaced frame */
+    pic_param->raw_coding.flags.field_tx                            = v->fieldtx_is_raw;
+    pic_param->raw_coding.flags.forward_mb                          = v->fmb_is_raw;
     pic_param->raw_coding.flags.ac_pred                             = v->acpred_is_raw;
     pic_param->raw_coding.flags.overflags                           = v->overflg_is_raw;
     pic_param->bitplane_present.value                               = 0; /* reset all bits */
     pic_param->bitplane_present.flags.bp_mv_type_mb                 = vc1_has_MVTYPEMB_bitplane(v);
     pic_param->bitplane_present.flags.bp_direct_mb                  = vc1_has_DIRECTMB_bitplane(v);
     pic_param->bitplane_present.flags.bp_skip_mb                    = vc1_has_SKIPMB_bitplane(v);
-    pic_param->bitplane_present.flags.bp_field_tx                   = 0; /* XXX: interlaced frame */
-    pic_param->bitplane_present.flags.bp_forward_mb                 = 0; /* XXX: interlaced frame */
+    pic_param->bitplane_present.flags.bp_field_tx                   = vc1_has_FIELDTX_bitplane(v);
+    pic_param->bitplane_present.flags.bp_forward_mb                 = vc1_has_FORWARDMB_bitplane(v);
     pic_param->bitplane_present.flags.bp_ac_pred                    = vc1_has_ACPRED_bitplane(v);
     pic_param->bitplane_present.flags.bp_overflags                  = vc1_has_OVERFLAGS_bitplane(v);
     pic_param->reference_fields.value                               = 0; /* reset all bits */
     pic_param->reference_fields.bits.reference_distance_flag        = v->refdist_flag;
-    pic_param->reference_fields.bits.reference_distance             = 0; /* XXX: interlaced frame */
-    pic_param->reference_fields.bits.num_reference_pictures         = 0; /* XXX: interlaced frame */
-    pic_param->reference_fields.bits.reference_field_pic_indicator  = 0; /* XXX: interlaced frame */
+    pic_param->reference_fields.bits.reference_distance             = v->refdist;
+    pic_param->reference_fields.bits.num_reference_pictures         = v->numref;
+    pic_param->reference_fields.bits.reference_field_pic_indicator  = v->reffield;
     pic_param->mv_fields.value                                      = 0; /* reset all bits */
     pic_param->mv_fields.bits.mv_mode                               = vc1_get_MVMODE(v);
     pic_param->mv_fields.bits.mv_mode2                              = vc1_get_MVMODE2(v);
-    pic_param->mv_fields.bits.mv_table                              = s->mv_table_index;
-    pic_param->mv_fields.bits.two_mv_block_pattern_table            = 0; /* XXX: interlaced frame */
-    pic_param->mv_fields.bits.four_mv_switch                        = 0; /* XXX: interlaced frame */
-    pic_param->mv_fields.bits.four_mv_block_pattern_table           = 0; /* XXX: interlaced frame */
+    pic_param->mv_fields.bits.mv_table                              = (v->fcm == PROGRESSIVE ? s->mv_table_index : v->imvtab);
+    pic_param->mv_fields.bits.two_mv_block_pattern_table            = v->twomvbptab;
+    pic_param->mv_fields.bits.four_mv_switch                        = v->fourmvswitch;
+    pic_param->mv_fields.bits.four_mv_block_pattern_table           = v->fourmvbptab;
     pic_param->mv_fields.bits.extended_mv_flag                      = v->extended_mv;
     pic_param->mv_fields.bits.extended_mv_range                     = v->mvrange;
     pic_param->mv_fields.bits.extended_dmv_flag                     = v->extended_dmv;
-    pic_param->mv_fields.bits.extended_dmv_range                    = 0; /* XXX: interlaced frame */
+    pic_param->mv_fields.bits.extended_dmv_range                    = v->dmvrange;
     pic_param->pic_quantizer_fields.value                           = 0; /* reset all bits */
     pic_param->pic_quantizer_fields.bits.dquant                     = v->dquant;
     pic_param->pic_quantizer_fields.bits.quantizer                  = v->quantizer_mode;
@@ -277,14 +380,14 @@ static int vaapi_vc1_start_frame(AVCodecContext *avctx, av_unused const uint8_t 
             break;
         case AV_PICTURE_TYPE_B:
             if (!v->bi_type) {
-                ff_bp[0] = pic_param->bitplane_present.flags.bp_direct_mb ? v->direct_mb_plane : NULL;
-                ff_bp[1] = pic_param->bitplane_present.flags.bp_skip_mb   ? s->mbskip_table    : NULL;
-                ff_bp[2] = NULL; /* XXX: interlaced frame (FORWARD plane) */
+                ff_bp[0] = pic_param->bitplane_present.flags.bp_direct_mb  ? v->direct_mb_plane  : NULL;
+                ff_bp[1] = pic_param->bitplane_present.flags.bp_skip_mb    ? s->mbskip_table     : NULL;
+                ff_bp[2] = pic_param->bitplane_present.flags.bp_forward_mb ? v->forward_mb_plane : NULL;
                 break;
             }
             /* fall-through (BI-type) */
         case AV_PICTURE_TYPE_I:
-            ff_bp[0] = NULL; /* XXX: interlaced frame (FIELDTX plane) */
+            ff_bp[0] = pic_param->bitplane_present.flags.bp_field_tx   ? v->fieldtx_plane      : NULL;
             ff_bp[1] = pic_param->bitplane_present.flags.bp_ac_pred    ? v->acpred_plane       : NULL;
             ff_bp[2] = pic_param->bitplane_present.flags.bp_overflags  ? v->over_flags_plane   : NULL;
             break;
