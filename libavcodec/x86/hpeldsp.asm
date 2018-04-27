@@ -145,10 +145,16 @@ cglobal put_no_rnd_pixels8_x2, 4,5
     mova         m1, [r1+1]
     mova         m3, [r1+r2+1]
     add          r1, r4
-    psubusb      m0, m6
-    psubusb      m2, m6
+    mova         m4, m0
+    pxor         m4, m1
+    pand         m4, m6
     PAVGB        m0, m1
+    psubb        m0, m4
+    mova         m4, m2
+    pxor         m4, m3
+    pand         m4, m6
     PAVGB        m2, m3
+    psubb        m2, m4
     mova       [r0], m0
     mova    [r0+r2], m2
     mova         m0, [r1]
@@ -157,10 +163,16 @@ cglobal put_no_rnd_pixels8_x2, 4,5
     mova         m3, [r1+r2+1]
     add          r0, r4
     add          r1, r4
-    psubusb      m0, m6
-    psubusb      m2, m6
+    mova         m4, m0
+    pxor         m4, m1
+    pand         m4, m6
     PAVGB        m0, m1
+    psubb        m0, m4
+    mova         m4, m2
+    pxor         m4, m3
+    pand         m4, m6
     PAVGB        m2, m3
+    psubb        m2, m4
     mova       [r0], m0
     mova    [r0+r2], m2
     add          r0, r4
@@ -227,18 +239,32 @@ cglobal put_no_rnd_pixels8_y2, 4,5
     mova         m1, [r1+r2]
     mova         m2, [r1+r4]
     add          r1, r4
-    psubusb      m1, m6
+    mova         m3, m0
+    pxor         m3, m1
+    pand         m3, m6
     PAVGB        m0, m1
+    psubb        m0, m3
+    mova         m3, m1
+    pxor         m3, m2
+    pand         m3, m6
     PAVGB        m1, m2
+    psubb        m1, m3
     mova    [r0+r2], m0
     mova    [r0+r4], m1
     mova         m1, [r1+r2]
     mova         m0, [r1+r4]
     add          r0, r4
     add          r1, r4
-    psubusb      m1, m6
+    mova         m3, m2
+    pxor         m3, m1
+    pand         m3, m6
     PAVGB        m2, m1
+    psubb        m2, m3
+    mova         m3, m1
+    pxor         m3, m0
+    pand         m3, m6
     PAVGB        m1, m0
+    psubb        m1, m3
     mova    [r0+r2], m2
     mova    [r0+r4], m1
     add          r0, r4
