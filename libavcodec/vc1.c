@@ -422,6 +422,9 @@ static int decode_sequence_header_adv(VC1Context *v, GetBitContext *gb)
     v->max_coded_width       = (get_bits(gb, 12) + 1) << 1;
     v->max_coded_height      = (get_bits(gb, 12) + 1) << 1;
     v->broadcast             = get_bits1(gb);
+    if (v->broadcast) // Pulldown may be present
+        v->s.avctx->ticks_per_frame = 2;
+
     v->interlace             = get_bits1(gb);
     v->tfcntrflag            = get_bits1(gb);
     v->finterpflag           = get_bits1(gb);
@@ -479,9 +482,6 @@ static int decode_sequence_header_adv(VC1Context *v, GetBitContext *gb)
                     v->s.avctx->framerate.den = ff_vc1_fps_dr[dr - 1];
                     v->s.avctx->framerate.num = ff_vc1_fps_nr[nr - 1] * 1000;
                 }
-            }
-            if (v->broadcast) { // Pulldown may be present
-                v->s.avctx->ticks_per_frame = 2;
             }
         }
 
