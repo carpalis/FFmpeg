@@ -289,7 +289,7 @@ int ff_vc1_decode_sequence_header(AVCodecContext *avctx, VC1Context *v, GetBitCo
         v->chromaformat = 1;
         v->zz_8x4 = ff_wmv2_scantableA;
         v->zz_4x8 = ff_wmv2_scantableB;
-        v->res_y411   = get_bits1(gb);
+        v->res_y411 = get_bits1(gb);
         v->res_sprite = get_bits1(gb);
         if (v->res_y411) {
             av_log(avctx, AV_LOG_ERROR,
@@ -302,7 +302,7 @@ int ff_vc1_decode_sequence_header(AVCodecContext *avctx, VC1Context *v, GetBitCo
     v->frmrtq_postproc = get_bits(gb, 3); //common
     // (bitrate-32kbps)/64kbps
     v->bitrtq_postproc = get_bits(gb, 5); //common
-    v->s.loop_filter   = get_bits1(gb); //common
+    v->s.loop_filter = get_bits1(gb); //common
     if (v->s.loop_filter == 1 && v->profile == PROFILE_SIMPLE) {
         av_log(avctx, AV_LOG_ERROR,
                "LOOPFILTER shall not be enabled in Simple Profile\n");
@@ -310,46 +310,46 @@ int ff_vc1_decode_sequence_header(AVCodecContext *avctx, VC1Context *v, GetBitCo
     if (v->s.avctx->skip_loop_filter >= AVDISCARD_ALL)
         v->s.loop_filter = 0;
 
-    v->res_x8          = get_bits1(gb); //reserved
-    v->multires        = get_bits1(gb);
-    v->res_fasttx      = get_bits1(gb);
+    v->res_x8 = get_bits1(gb); //reserved
+    v->multires = get_bits1(gb);
+    v->res_fasttx = get_bits1(gb);
     if (!v->res_fasttx) {
-        v->vc1dsp.vc1_inv_trans_8x8    = ff_simple_idct_int16_8bit;
-        v->vc1dsp.vc1_inv_trans_8x4    = ff_simple_idct84_add;
-        v->vc1dsp.vc1_inv_trans_4x8    = ff_simple_idct48_add;
-        v->vc1dsp.vc1_inv_trans_4x4    = ff_simple_idct44_add;
+        v->vc1dsp.vc1_inv_trans_8x8 = ff_simple_idct_int16_8bit;
+        v->vc1dsp.vc1_inv_trans_8x4 = ff_simple_idct84_add;
+        v->vc1dsp.vc1_inv_trans_4x8 = ff_simple_idct48_add;
+        v->vc1dsp.vc1_inv_trans_4x4 = ff_simple_idct44_add;
         v->vc1dsp.vc1_inv_trans_8x8_dc = ff_simple_idct_add_int16_8bit;
         v->vc1dsp.vc1_inv_trans_8x4_dc = ff_simple_idct84_add;
         v->vc1dsp.vc1_inv_trans_4x8_dc = ff_simple_idct48_add;
         v->vc1dsp.vc1_inv_trans_4x4_dc = ff_simple_idct44_add;
     }
 
-    v->fastuvmc        = get_bits1(gb); //common
+    v->fastuvmc = get_bits1(gb); //common
     if (!v->profile && !v->fastuvmc) {
         av_log(avctx, AV_LOG_ERROR,
                "FASTUVMC unavailable in Simple Profile\n");
         return -1;
     }
-    v->extended_mv     = get_bits1(gb); //common
+    v->extended_mv = get_bits1(gb); //common
     if (!v->profile && v->extended_mv) {
         av_log(avctx, AV_LOG_ERROR,
                "Extended MVs unavailable in Simple Profile\n");
         return -1;
     }
-    v->dquant          = get_bits(gb, 2); //common
-    v->vstransform     = get_bits1(gb); //common
+    v->dquant = get_bits(gb, 2); //common
+    v->vstransform = get_bits1(gb); //common
 
-    v->res_transtab    = get_bits1(gb);
+    v->res_transtab = get_bits1(gb);
     if (v->res_transtab) {
         av_log(avctx, AV_LOG_ERROR,
                "1 for reserved RES_TRANSTAB is forbidden\n");
         return -1;
     }
 
-    v->overlap         = get_bits1(gb); //common
+    v->overlap = get_bits1(gb); //common
 
-    v->resync_marker   = get_bits1(gb);
-    v->rangered        = get_bits1(gb);
+    v->resync_marker = get_bits1(gb);
+    v->rangered = get_bits1(gb);
     if (v->rangered && v->profile == PROFILE_SIMPLE) {
         av_log(avctx, AV_LOG_INFO,
                "RANGERED should be set to 0 in Simple Profile\n");
@@ -414,20 +414,20 @@ static int decode_sequence_header_adv(VC1Context *v, GetBitContext *gb)
     }
 
     // (fps-2)/4 (->30)
-    v->frmrtq_postproc       = get_bits(gb, 3); //common
+    v->frmrtq_postproc = get_bits(gb, 3); //common
     // (bitrate-32kbps)/64kbps
-    v->bitrtq_postproc       = get_bits(gb, 5); //common
-    v->postprocflag          = get_bits1(gb);   //common
+    v->bitrtq_postproc = get_bits(gb, 5); //common
+    v->postprocflag = get_bits1(gb); //common
 
-    v->max_coded_width       = (get_bits(gb, 12) + 1) << 1;
-    v->max_coded_height      = (get_bits(gb, 12) + 1) << 1;
-    v->broadcast             = get_bits1(gb);
+    v->max_coded_width = (get_bits(gb, 12) + 1) << 1;
+    v->max_coded_height = (get_bits(gb, 12) + 1) << 1;
+    v->broadcast = get_bits1(gb);
     if (v->broadcast) // Pulldown may be present
         v->s.avctx->ticks_per_frame = 2;
 
-    v->interlace             = get_bits1(gb);
-    v->tfcntrflag            = get_bits1(gb);
-    v->finterpflag           = get_bits1(gb);
+    v->interlace = get_bits1(gb);
+    v->tfcntrflag = get_bits1(gb);
+    v->finterpflag = get_bits1(gb);
     skip_bits1(gb); // reserved
 
     av_log(v->s.avctx, AV_LOG_DEBUG,
@@ -481,9 +481,9 @@ static int decode_sequence_header_adv(VC1Context *v, GetBitContext *gb)
         }
 
         if (get_bits1(gb)) {
-            v->color_prim    = get_bits(gb, 8);
+            v->color_prim = get_bits(gb, 8);
             v->transfer_char = get_bits(gb, 8);
-            v->matrix_coef   = get_bits(gb, 8);
+            v->matrix_coef = get_bits(gb, 8);
         }
     } else {
         v->disp_horiz_size = v->max_coded_width;
@@ -512,18 +512,18 @@ int ff_vc1_decode_entry_point(AVCodecContext *avctx, VC1Context *v, GetBitContex
     int ret;
 
     av_log(avctx, AV_LOG_DEBUG, "Entry point: %08X\n", show_bits_long(gb, 32));
-    v->broken_link    = get_bits1(gb);
-    v->closed_entry   = get_bits1(gb);
-    v->panscanflag    = get_bits1(gb);
-    v->refdist_flag   = get_bits1(gb);
-    v->s.loop_filter  = get_bits1(gb);
+    v->broken_link = get_bits1(gb);
+    v->closed_entry = get_bits1(gb);
+    v->panscanflag = get_bits1(gb);
+    v->refdist_flag = get_bits1(gb);
+    v->s.loop_filter = get_bits1(gb);
     if (v->s.avctx->skip_loop_filter >= AVDISCARD_ALL)
         v->s.loop_filter = 0;
-    v->fastuvmc       = get_bits1(gb);
-    v->extended_mv    = get_bits1(gb);
-    v->dquant         = get_bits(gb, 2);
-    v->vstransform    = get_bits1(gb);
-    v->overlap        = get_bits1(gb);
+    v->fastuvmc = get_bits1(gb);
+    v->extended_mv = get_bits1(gb);
+    v->dquant = get_bits(gb, 2);
+    v->vstransform = get_bits1(gb);
+    v->overlap = get_bits1(gb);
     v->quantizer_mode = get_bits(gb, 2);
 
     if (v->hrd_param_flag) {
