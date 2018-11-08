@@ -447,7 +447,7 @@ static av_cold int vc1_decode_init(AVCodecContext *avctx)
 
         init_get_bits(&gb, avctx->extradata, avctx->extradata_size*8);
 
-        if ((ret = ff_vc1_decode_sequence_header(avctx, v, &gb)) < 0)
+        if ((ret = ff_vc1_decode_sequence_header(v, &gb)) < 0)
           return ret;
 
         count = avctx->extradata_size*8 - get_bits_count(&gb);
@@ -485,14 +485,14 @@ static av_cold int vc1_decode_init(AVCodecContext *avctx)
             init_get_bits(&gb, buf2, buf2_size * 8);
             switch (AV_RB32(start)) {
             case VC1_CODE_SEQHDR:
-                if ((ret = ff_vc1_decode_sequence_header(avctx, v, &gb)) < 0) {
+                if ((ret = ff_vc1_decode_sequence_header(v, &gb)) < 0) {
                     av_free(buf2);
                     return ret;
                 }
                 seq_initialized = 1;
                 break;
             case VC1_CODE_ENTRYPOINT:
-                if ((ret = ff_vc1_decode_entry_point(avctx, v, &gb)) < 0) {
+                if ((ret = ff_vc1_decode_entry_point(v, &gb)) < 0) {
                     av_free(buf2);
                     return ret;
                 }
@@ -708,7 +708,7 @@ static int vc1_decode_frame(AVCodecContext *avctx, void *data,
                 case VC1_CODE_ENTRYPOINT: /* it should be before frame data */
                     buf_size2 = vc1_unescape_buffer(start + 4, size, buf2);
                     init_get_bits(&s->gb, buf2, buf_size2 * 8);
-                    ff_vc1_decode_entry_point(avctx, v, &s->gb);
+                    ff_vc1_decode_entry_point(v, &s->gb);
                     break;
                 case VC1_CODE_SLICE: {
                     int buf_size3;

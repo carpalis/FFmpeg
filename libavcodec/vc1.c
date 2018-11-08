@@ -269,12 +269,14 @@ static int decode_sequence_header_adv(VC1Context *v, GetBitContext *gb);
 /**
  * Decode Simple/Main Profiles sequence header
  * @see Figure 7-8, p16-17
- * @param avctx Codec context
+ * @param v VC-1 codec context
  * @param gb GetBit context initialized from Codec context extra_data
  * @return Status
  */
-int ff_vc1_decode_sequence_header(AVCodecContext *avctx, VC1Context *v, GetBitContext *gb)
+int ff_vc1_decode_sequence_header(VC1Context *v, GetBitContext *gb)
 {
+    AVCodecContext *avctx = v->s.avctx;
+
     av_log(avctx, AV_LOG_DEBUG, "Header: %0X\n", show_bits_long(gb, 32));
     v->profile = get_bits(gb, 2);
     if (v->profile == PROFILE_COMPLEX) {
@@ -307,7 +309,7 @@ int ff_vc1_decode_sequence_header(AVCodecContext *avctx, VC1Context *v, GetBitCo
         av_log(avctx, AV_LOG_ERROR,
                "LOOPFILTER shall not be enabled in Simple Profile\n");
     }
-    if (v->s.avctx->skip_loop_filter >= AVDISCARD_ALL)
+    if (avctx->skip_loop_filter >= AVDISCARD_ALL)
         v->s.loop_filter = 0;
 
     v->res_x8 = get_bits1(gb); //reserved
@@ -363,7 +365,7 @@ int ff_vc1_decode_sequence_header(AVCodecContext *avctx, VC1Context *v, GetBitCo
     if (v->res_sprite) {
         int w = get_bits(gb, 11);
         int h = get_bits(gb, 11);
-        int ret = ff_set_dimensions(v->s.avctx, w, h);
+        int ret = ff_set_dimensions(avctx, w, h);
         if (ret < 0) {
             av_log(avctx, AV_LOG_ERROR, "Failed to set dimensions %d %d\n", w, h);
             return ret;
@@ -505,8 +507,9 @@ static int decode_sequence_header_adv(VC1Context *v, GetBitContext *gb)
     return 0;
 }
 
-int ff_vc1_decode_entry_point(AVCodecContext *avctx, VC1Context *v, GetBitContext *gb)
+int ff_vc1_decode_entry_point(VC1Context *v, GetBitContext *gb)
 {
+    AVCodecContext *avctx = v->s.avctx;
     int i;
     int w,h;
     int ret;
@@ -517,7 +520,7 @@ int ff_vc1_decode_entry_point(AVCodecContext *avctx, VC1Context *v, GetBitContex
     v->panscanflag = get_bits1(gb);
     v->refdist_flag = get_bits1(gb);
     v->s.loop_filter = get_bits1(gb);
-    if (v->s.avctx->skip_loop_filter >= AVDISCARD_ALL)
+    if (avctx->skip_loop_filter >= AVDISCARD_ALL)
         v->s.loop_filter = 0;
     v->fastuvmc = get_bits1(gb);
     v->extended_mv = get_bits1(gb);
