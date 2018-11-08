@@ -96,6 +96,7 @@ static void decode_colskip(uint8_t* plane, int width, int height, int stride,
  */
 static int bitplane_decoding(uint8_t* data, int *raw_flag, VC1Context *v)
 {
+    AVCodecContext *avctx = v->s.avctx;
     GetBitContext *gb = &v->s.gb;
 
     int imode, x, y, code, offset;
@@ -150,7 +151,7 @@ static int bitplane_decoding(uint8_t* data, int *raw_flag, VC1Context *v)
                 for (x = width & 1; x < width; x += 2) {
                     code = get_vlc2(gb, ff_vc1_norm6_vlc.table, VC1_NORM6_VLC_BITS, 2);
                     if (code < 0) {
-                        av_log(v->s.avctx, AV_LOG_DEBUG, "invalid NORM-6 VLC\n");
+                        av_log(avctx, AV_LOG_DEBUG, "invalid NORM-6 VLC\n");
                         return -1;
                     }
                     planep[x + 0]              = (code >> 0) & 1;
@@ -170,7 +171,7 @@ static int bitplane_decoding(uint8_t* data, int *raw_flag, VC1Context *v)
                 for (x = width % 3; x < width; x += 3) {
                     code = get_vlc2(gb, ff_vc1_norm6_vlc.table, VC1_NORM6_VLC_BITS, 2);
                     if (code < 0) {
-                        av_log(v->s.avctx, AV_LOG_DEBUG, "invalid NORM-6 VLC\n");
+                        av_log(avctx, AV_LOG_DEBUG, "invalid NORM-6 VLC\n");
                         return -1;
                     }
                     planep[x + 0]          = (code >> 0) & 1;
@@ -403,14 +404,16 @@ int ff_vc1_decode_sequence_header(VC1Context *v, GetBitContext *gb)
 
 static int decode_sequence_header_adv(VC1Context *v, GetBitContext *gb)
 {
+    AVCodecContext *avctx = v->s.avctx;
+
     v->res_rtm_flag = 1;
     v->level = get_bits(gb, 3);
     if (v->level >= 5) {
-        av_log(v->s.avctx, AV_LOG_ERROR, "Reserved LEVEL %i\n",v->level);
+        av_log(avctx, AV_LOG_ERROR, "Reserved LEVEL %i\n",v->level);
     }
     v->chromaformat = get_bits(gb, 2);
     if (v->chromaformat != 1) {
-        av_log(v->s.avctx, AV_LOG_ERROR,
+        av_log(avctx, AV_LOG_ERROR,
                "Only 4:2:0 chroma format supported\n");
         return -1;
     }
@@ -425,14 +428,14 @@ static int decode_sequence_header_adv(VC1Context *v, GetBitContext *gb)
     v->max_coded_height = (get_bits(gb, 12) + 1) << 1;
     v->broadcast = get_bits1(gb);
     if (v->broadcast) // Pulldown may be present
-        v->s.avctx->ticks_per_frame = 2;
+        avctx->ticks_per_frame = 2;
 
     v->interlace = get_bits1(gb);
     v->tfcntrflag = get_bits1(gb);
     v->finterpflag = get_bits1(gb);
     skip_bits1(gb); // reserved
 
-    av_log(v->s.avctx, AV_LOG_DEBUG,
+    av_log(avctx, AV_LOG_DEBUG,
            "Advanced Profile level %i:\nfrmrtq_postproc=%i, bitrtq_postproc=%i\n"
            "LoopFilter=%i, ChromaFormat=%i, Pulldown=%i, Interlace: %i\n"
            "TFCTRflag=%i, FINTERPflag=%i\n",
@@ -442,16 +445,16 @@ static int decode_sequence_header_adv(VC1Context *v, GetBitContext *gb)
 
     v->psf = get_bits1(gb);
     if (v->psf) { //PsF, 6.1.13
-        av_log(v->s.avctx, AV_LOG_ERROR, "Progressive Segmented Frame mode: not supported (yet)\n");
+        av_log(avctx, AV_LOG_ERROR, "Progressive Segmented Frame mode: not supported (yet)\n");
         return -1;
     }
-    v->s.max_b_frames = v->s.avctx->max_b_frames = 7;
+    v->s.max_b_frames = avctx->max_b_frames = 7;
     if (get_bits1(gb)) { //Display Info - decoding is not affected by it
         int ar = 0;
-        av_log(v->s.avctx, AV_LOG_DEBUG, "Display extended info:\n");
+        av_log(avctx, AV_LOG_DEBUG, "Display extended info:\n");
         v->disp_horiz_size = get_bits(gb, 14) + 1;
         v->disp_vert_size = get_bits(gb, 14) + 1;
-        av_log(v->s.avctx, AV_LOG_DEBUG, "Display dimensions: %ix%i\n",
+        av_log(avctx, AV_LOG_DEBUG, "Display dimensions: %ix%i\n",
                v->disp_horiz_size, v->disp_vert_size);
         if (get_bits1(gb))
             ar = get_bits(gb, 4);
@@ -463,21 +466,21 @@ static int decode_sequence_header_adv(VC1Context *v, GetBitContext *gb)
         } else {
             v->aspect_ratio = (AVRational){0, 1};
         }
-        av_log(v->s.avctx, AV_LOG_DEBUG, "Aspect ratio: %i:%i\n",
+        av_log(avctx, AV_LOG_DEBUG, "Aspect ratio: %i:%i\n",
                v->aspect_ratio.num,
                v->aspect_ratio.den);
 
         if (get_bits1(gb)) { //framerate stuff
             if (get_bits1(gb)) {
-                v->s.avctx->framerate.den = 32;
-                v->s.avctx->framerate.num = get_bits(gb, 16) + 1;
+                avctx->framerate.den = 32;
+                avctx->framerate.num = get_bits(gb, 16) + 1;
             } else {
                 int nr, dr;
                 nr = get_bits(gb, 8);
                 dr = get_bits(gb, 4);
                 if (nr > 0 && nr < 8 && dr > 0 && dr < 3) {
-                    v->s.avctx->framerate.den = ff_vc1_fps_dr[dr - 1];
-                    v->s.avctx->framerate.num = ff_vc1_fps_nr[nr - 1] * 1000;
+                    avctx->framerate.den = ff_vc1_fps_dr[dr - 1];
+                    avctx->framerate.num = ff_vc1_fps_nr[nr - 1] * 1000;
                 }
             }
         }
@@ -645,15 +648,16 @@ static int read_bfraction(VC1Context *v, GetBitContext* gb) {
 
 int ff_vc1_parse_frame_header(VC1Context *v, GetBitContext* gb)
 {
+    AVCodecContext *avctx = v->s.avctx;
     int pqindex, lowquant, status;
 
     v->field_mode = 0;
     v->fcm = PROGRESSIVE;
     if (v->finterpflag)
         v->interpfrm = get_bits1(gb);
-    if (!v->s.avctx->codec)
+    if (!avctx->codec)
         return -1;
-    if (v->s.avctx->codec_id == AV_CODEC_ID_MSS2)
+    if (avctx->codec_id == AV_CODEC_ID_MSS2)
         v->respic   =
         v->rangered =
         v->multires = get_bits(gb, 2) == 1;
@@ -665,7 +669,7 @@ int ff_vc1_parse_frame_header(VC1Context *v, GetBitContext* gb)
     if (get_bits1(gb)) {
         v->s.pict_type = AV_PICTURE_TYPE_P;
     } else {
-        if (v->s.avctx->max_b_frames && !get_bits1(gb)) {
+        if (avctx->max_b_frames && !get_bits1(gb)) {
             v->s.pict_type = AV_PICTURE_TYPE_B;
         } else
             v->s.pict_type = AV_PICTURE_TYPE_I;
@@ -732,7 +736,7 @@ int ff_vc1_parse_frame_header(VC1Context *v, GetBitContext* gb)
         v->x8_type = get_bits1(gb);
     } else
         v->x8_type = 0;
-    ff_dlog(v->s.avctx, "%c Frame: QP=[%i]%i (+%i/2) %i\n",
+    ff_dlog(avctx, "%c Frame: QP=[%i]%i (+%i/2) %i\n",
             (v->s.pict_type == AV_PICTURE_TYPE_P) ? 'P' : ((v->s.pict_type == AV_PICTURE_TYPE_I) ? 'I' : 'B'),
             pqindex, v->pq, v->halfpq, v->rangeredfrm);
 
@@ -771,7 +775,7 @@ int ff_vc1_parse_frame_header(VC1Context *v, GetBitContext* gb)
             status = bitplane_decoding(v->mv_type_mb_plane, &v->mv_type_is_raw, v);
             if (status < 0)
                 return -1;
-            av_log(v->s.avctx, AV_LOG_DEBUG, "MB MV Type plane encoding: "
+            av_log(avctx, AV_LOG_DEBUG, "MB MV Type plane encoding: "
                    "Imode: %i, Invert: %i\n", status>>1, status&1);
         } else {
             v->mv_type_is_raw = 0;
@@ -780,7 +784,7 @@ int ff_vc1_parse_frame_header(VC1Context *v, GetBitContext* gb)
         status = bitplane_decoding(v->s.mbskip_table, &v->skip_is_raw, v);
         if (status < 0)
             return -1;
-        av_log(v->s.avctx, AV_LOG_DEBUG, "MB Skip plane encoding: "
+        av_log(avctx, AV_LOG_DEBUG, "MB Skip plane encoding: "
                "Imode: %i, Invert: %i\n", status>>1, status&1);
 
         /* Hopefully this is correct for P-frames */
@@ -789,7 +793,7 @@ int ff_vc1_parse_frame_header(VC1Context *v, GetBitContext* gb)
         v->cbpcy_vlc = &ff_vc1_cbpcy_p_vlc[v->cbptab];
 
         if (v->dquant) {
-            av_log(v->s.avctx, AV_LOG_DEBUG, "VOP DQuant info\n");
+            av_log(avctx, AV_LOG_DEBUG, "VOP DQuant info\n");
             vop_dquant_decoding(v);
         }
 
@@ -815,12 +819,12 @@ int ff_vc1_parse_frame_header(VC1Context *v, GetBitContext* gb)
         status = bitplane_decoding(v->direct_mb_plane, &v->dmb_is_raw, v);
         if (status < 0)
             return -1;
-        av_log(v->s.avctx, AV_LOG_DEBUG, "MB Direct Type plane encoding: "
+        av_log(avctx, AV_LOG_DEBUG, "MB Direct Type plane encoding: "
                "Imode: %i, Invert: %i\n", status>>1, status&1);
         status = bitplane_decoding(v->s.mbskip_table, &v->skip_is_raw, v);
         if (status < 0)
             return -1;
-        av_log(v->s.avctx, AV_LOG_DEBUG, "MB Skip plane encoding: "
+        av_log(avctx, AV_LOG_DEBUG, "MB Skip plane encoding: "
                "Imode: %i, Invert: %i\n", status>>1, status&1);
 
         v->s.mv_table_index = get_bits(gb, 2);
@@ -828,7 +832,7 @@ int ff_vc1_parse_frame_header(VC1Context *v, GetBitContext* gb)
         v->cbpcy_vlc        = &ff_vc1_cbpcy_p_vlc[v->cbptab];
 
         if (v->dquant) {
-            av_log(v->s.avctx, AV_LOG_DEBUG, "VOP DQuant info\n");
+            av_log(avctx, AV_LOG_DEBUG, "VOP DQuant info\n");
             vop_dquant_decoding(v);
         }
 
@@ -864,6 +868,7 @@ int ff_vc1_parse_frame_header(VC1Context *v, GetBitContext* gb)
 
 int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext* gb)
 {
+    AVCodecContext *avctx = v->s.avctx;
     int pqindex, lowquant;
     int status;
     int field_mode, fcm;
@@ -940,7 +945,7 @@ int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext* gb)
         v->tff = 1;
     }
     if (v->panscanflag) {
-        avpriv_report_missing_feature(v->s.avctx, "Pan-scan");
+        avpriv_report_missing_feature(avctx, "Pan-scan");
         //...
     }
     if (v->p_frame_skipped) {
@@ -1027,14 +1032,14 @@ int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext* gb)
             status = bitplane_decoding(v->fieldtx_plane, &v->fieldtx_is_raw, v);
             if (status < 0)
                 return -1;
-            av_log(v->s.avctx, AV_LOG_DEBUG, "FIELDTX plane encoding: "
+            av_log(avctx, AV_LOG_DEBUG, "FIELDTX plane encoding: "
                    "Imode: %i, Invert: %i\n", status>>1, status&1);
         } else
             v->fieldtx_is_raw = 0;
         status = bitplane_decoding(v->acpred_plane, &v->acpred_is_raw, v);
         if (status < 0)
             return -1;
-        av_log(v->s.avctx, AV_LOG_DEBUG, "ACPRED plane encoding: "
+        av_log(avctx, AV_LOG_DEBUG, "ACPRED plane encoding: "
                "Imode: %i, Invert: %i\n", status>>1, status&1);
         v->condover = CONDOVER_NONE;
         if (v->overlap && v->pq <= 8) {
@@ -1043,7 +1048,7 @@ int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext* gb)
                 status = bitplane_decoding(v->over_flags_plane, &v->overflg_is_raw, v);
                 if (status < 0)
                     return -1;
-                av_log(v->s.avctx, AV_LOG_DEBUG, "CONDOVER plane encoding: "
+                av_log(avctx, AV_LOG_DEBUG, "CONDOVER plane encoding: "
                        "Imode: %i, Invert: %i\n", status>>1, status&1);
             }
         }
@@ -1078,7 +1083,7 @@ int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext* gb)
                 status = bitplane_decoding(v->s.mbskip_table, &v->skip_is_raw, v);
                 if (status < 0)
                     return -1;
-                av_log(v->s.avctx, AV_LOG_DEBUG, "SKIPMB plane encoding: "
+                av_log(avctx, AV_LOG_DEBUG, "SKIPMB plane encoding: "
                        "Imode: %i, Invert: %i\n", status>>1, status&1);
                 v->mbmodetab = get_bits(gb, 2);
                 if (v->fourmvswitch)
@@ -1164,7 +1169,7 @@ int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext* gb)
                 status = bitplane_decoding(v->mv_type_mb_plane, &v->mv_type_is_raw, v);
                 if (status < 0)
                     return -1;
-                av_log(v->s.avctx, AV_LOG_DEBUG, "MB MV Type plane encoding: "
+                av_log(avctx, AV_LOG_DEBUG, "MB MV Type plane encoding: "
                        "Imode: %i, Invert: %i\n", status>>1, status&1);
             } else {
                 v->mv_type_is_raw = 0;
@@ -1173,7 +1178,7 @@ int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext* gb)
             status = bitplane_decoding(v->s.mbskip_table, &v->skip_is_raw, v);
             if (status < 0)
                 return -1;
-            av_log(v->s.avctx, AV_LOG_DEBUG, "MB Skip plane encoding: "
+            av_log(avctx, AV_LOG_DEBUG, "MB Skip plane encoding: "
                    "Imode: %i, Invert: %i\n", status>>1, status&1);
 
             /* Hopefully this is correct for P-frames */
@@ -1203,7 +1208,7 @@ int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext* gb)
             }
         }
         if (v->dquant) {
-            av_log(v->s.avctx, AV_LOG_DEBUG, "VOP DQuant info\n");
+            av_log(avctx, AV_LOG_DEBUG, "VOP DQuant info\n");
             vop_dquant_decoding(v);
         }
 
@@ -1239,7 +1244,7 @@ int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext* gb)
 
         if (v->field_mode) {
             int mvmode;
-            av_log(v->s.avctx, AV_LOG_DEBUG, "B Fields\n");
+            av_log(avctx, AV_LOG_DEBUG, "B Fields\n");
             if (v->extended_dmv)
                 v->dmvrange = get_unary(gb, 0, 3);
             mvmode = get_unary(gb, 1, 3);
@@ -1251,7 +1256,7 @@ int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext* gb)
             status = bitplane_decoding(v->forward_mb_plane, &v->fmb_is_raw, v);
             if (status < 0)
                 return -1;
-            av_log(v->s.avctx, AV_LOG_DEBUG, "MB Forward Type plane encoding: "
+            av_log(avctx, AV_LOG_DEBUG, "MB Forward Type plane encoding: "
                    "Imode: %i, Invert: %i\n", status>>1, status&1);
             v->mbmodetab = get_bits(gb, 3);
             if (v->mv_mode == MV_PMODE_MIXED_MV)
@@ -1271,7 +1276,7 @@ int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext* gb)
             if (v->extended_dmv)
                 v->dmvrange = get_unary(gb, 0, 3);
             if (get_bits1(gb)) /* intcomp - present but shall always be 0 */
-                av_log(v->s.avctx, AV_LOG_WARNING, "Intensity compensation set for B picture\n");
+                av_log(avctx, AV_LOG_WARNING, "Intensity compensation set for B picture\n");
             v->intcomp          = 0;
             v->mv_mode          = MV_PMODE_1MV;
             v->fourmvswitch     = 0;
@@ -1281,12 +1286,12 @@ int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext* gb)
             status              = bitplane_decoding(v->direct_mb_plane, &v->dmb_is_raw, v);
             if (status < 0)
                 return -1;
-            av_log(v->s.avctx, AV_LOG_DEBUG, "MB Direct Type plane encoding: "
+            av_log(avctx, AV_LOG_DEBUG, "MB Direct Type plane encoding: "
                    "Imode: %i, Invert: %i\n", status>>1, status&1);
             status = bitplane_decoding(v->s.mbskip_table, &v->skip_is_raw, v);
             if (status < 0)
                 return -1;
-            av_log(v->s.avctx, AV_LOG_DEBUG, "MB Skip plane encoding: "
+            av_log(avctx, AV_LOG_DEBUG, "MB Skip plane encoding: "
                    "Imode: %i, Invert: %i\n", status>>1, status&1);
             v->mbmodetab       = get_bits(gb, 2);
             v->mbmode_vlc   = &ff_vc1_intfr_non4mv_mbmode_vlc[v->mbmodetab];
@@ -1307,12 +1312,12 @@ int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext* gb)
             status              = bitplane_decoding(v->direct_mb_plane, &v->dmb_is_raw, v);
             if (status < 0)
                 return -1;
-            av_log(v->s.avctx, AV_LOG_DEBUG, "MB Direct Type plane encoding: "
+            av_log(avctx, AV_LOG_DEBUG, "MB Direct Type plane encoding: "
                    "Imode: %i, Invert: %i\n", status>>1, status&1);
             status = bitplane_decoding(v->s.mbskip_table, &v->skip_is_raw, v);
             if (status < 0)
                 return -1;
-            av_log(v->s.avctx, AV_LOG_DEBUG, "MB Skip plane encoding: "
+            av_log(avctx, AV_LOG_DEBUG, "MB Skip plane encoding: "
                    "Imode: %i, Invert: %i\n", status>>1, status&1);
             v->s.mv_table_index = get_bits(gb, 2);
             v->cbptab = get_bits(gb, 2);
@@ -1320,7 +1325,7 @@ int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext* gb)
         }
 
         if (v->dquant) {
-            av_log(v->s.avctx, AV_LOG_DEBUG, "VOP DQuant info\n");
+            av_log(avctx, AV_LOG_DEBUG, "VOP DQuant info\n");
             vop_dquant_decoding(v);
         }
 
@@ -1351,7 +1356,7 @@ int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext* gb)
     v->s.dc_table_index = get_bits1(gb);
     if ((v->s.pict_type == AV_PICTURE_TYPE_I || v->s.pict_type == AV_PICTURE_TYPE_BI)
         && v->dquant) {
-        av_log(v->s.avctx, AV_LOG_DEBUG, "VOP DQuant info\n");
+        av_log(avctx, AV_LOG_DEBUG, "VOP DQuant info\n");
         vop_dquant_decoding(v);
     }
 
