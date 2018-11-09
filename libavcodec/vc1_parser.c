@@ -66,7 +66,6 @@ static void vc1_extract_header(AVCodecParserContext *s, AVCodecContext *avctx,
     GetBitContext gb;
     int ret;
     vpc->v.s.avctx = avctx;
-    vpc->v.parse_only = 1;
     init_get_bits(&gb, buf, buf_size * 8);
     switch (vpc->prev_start_code) {
     case VC1_CODE_SEQHDR & 0xFF:
@@ -77,9 +76,9 @@ static void vc1_extract_header(AVCodecParserContext *s, AVCodecContext *avctx,
         break;
     case VC1_CODE_FRAME & 0xFF:
         if(vpc->v.profile < PROFILE_ADVANCED)
-            ret = ff_vc1_parse_frame_header    (&vpc->v, &gb);
+            ret = ff_vc1_parse_frame_header    (&vpc->v, &gb, 1);
         else
-            ret = ff_vc1_parse_frame_header_adv(&vpc->v, &gb);
+            ret = ff_vc1_parse_frame_header_adv(&vpc->v, &gb, 1);
 
         if (ret < 0)
             break;

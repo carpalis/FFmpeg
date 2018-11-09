@@ -646,7 +646,7 @@ static int read_bfraction(VC1Context *v, GetBitContext* gb) {
     return 0;
 }
 
-int ff_vc1_parse_frame_header(VC1Context *v, GetBitContext* gb)
+int ff_vc1_parse_frame_header(VC1Context *v, GetBitContext* gb, int parse_only)
 {
     AVCodecContext *avctx = v->s.avctx;
     int pqindex, lowquant, status;
@@ -686,7 +686,7 @@ int ff_vc1_parse_frame_header(VC1Context *v, GetBitContext* gb)
     if (v->s.pict_type == AV_PICTURE_TYPE_I || v->s.pict_type == AV_PICTURE_TYPE_BI)
         skip_bits(gb, 7); // skip buffer fullness
 
-    if (v->parse_only)
+    if (parse_only)
         return 0;
 
     /* calculate RND */
@@ -866,7 +866,7 @@ int ff_vc1_parse_frame_header(VC1Context *v, GetBitContext* gb)
     return 0;
 }
 
-int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext* gb)
+int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext* gb, int parse_only)
 {
     AVCodecContext *avctx = v->s.avctx;
     int pqindex, lowquant;
@@ -1019,7 +1019,7 @@ int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext* gb)
     if (v->postprocflag)
         v->postproc = get_bits(gb, 2);
 
-    if (v->parse_only)
+    if (parse_only)
         return 0;
 
     if (v->first_pic_header_flag)

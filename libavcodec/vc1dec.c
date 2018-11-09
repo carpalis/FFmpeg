@@ -823,11 +823,11 @@ static int vc1_decode_frame(AVCodecContext *avctx, void *data,
     v->pic_header_flag = 0;
     v->first_pic_header_flag = 1;
     if (v->profile < PROFILE_ADVANCED) {
-        if ((ret = ff_vc1_parse_frame_header(v, &s->gb)) < 0) {
+        if ((ret = ff_vc1_parse_frame_header(v, &s->gb, 0)) < 0) {
             goto err;
         }
     } else {
-        if ((ret = ff_vc1_parse_frame_header_adv(v, &s->gb)) < 0) {
+        if ((ret = ff_vc1_parse_frame_header_adv(v, &s->gb, 0)) < 0) {
             goto err;
         }
     }
@@ -916,7 +916,7 @@ static int vc1_decode_frame(AVCodecContext *avctx, void *data,
 
                     v->pic_header_flag = get_bits1(&s->gb);
                     if (v->pic_header_flag) {
-                        if (ff_vc1_parse_frame_header_adv(v, &s->gb) < 0) {
+                        if (ff_vc1_parse_frame_header_adv(v, &s->gb, 0) < 0) {
                             av_log(v->s.avctx, AV_LOG_ERROR, "Slice header damaged\n");
                             ret = AVERROR_INVALIDDATA;
                             if (avctx->err_recognition & AV_EF_EXPLODE)
@@ -939,7 +939,7 @@ static int vc1_decode_frame(AVCodecContext *avctx, void *data,
             s->picture_structure = PICT_TOP_FIELD + v->tff;
             v->second_field = 1;
             v->pic_header_flag = 0;
-            if (ff_vc1_parse_frame_header_adv(v, &s->gb) < 0) {
+            if (ff_vc1_parse_frame_header_adv(v, &s->gb, 0) < 0) {
                 av_log(avctx, AV_LOG_ERROR, "parsing header for second field failed");
                 ret = AVERROR_INVALIDDATA;
                 goto err;
@@ -963,7 +963,7 @@ static int vc1_decode_frame(AVCodecContext *avctx, void *data,
 
                     v->pic_header_flag = get_bits1(&s->gb);
                     if (v->pic_header_flag) {
-                        if (ff_vc1_parse_frame_header_adv(v, &s->gb) < 0) {
+                        if (ff_vc1_parse_frame_header_adv(v, &s->gb, 0) < 0) {
                             av_log(v->s.avctx, AV_LOG_ERROR, "Slice header damaged\n");
                             ret = AVERROR_INVALIDDATA;
                             if (avctx->err_recognition & AV_EF_EXPLODE)
@@ -1000,7 +1000,7 @@ static int vc1_decode_frame(AVCodecContext *avctx, void *data,
 
                     v->pic_header_flag = get_bits1(&s->gb);
                     if (v->pic_header_flag) {
-                        if (ff_vc1_parse_frame_header_adv(v, &s->gb) < 0) {
+                        if (ff_vc1_parse_frame_header_adv(v, &s->gb, 0) < 0) {
                             av_log(v->s.avctx, AV_LOG_ERROR, "Slice header damaged\n");
                             ret = AVERROR_INVALIDDATA;
                             if (avctx->err_recognition & AV_EF_EXPLODE)
@@ -1054,7 +1054,7 @@ static int vc1_decode_frame(AVCodecContext *avctx, void *data,
             if (i) {
                 v->pic_header_flag = 0;
                 if (v->field_mode && i == n_slices1 + 2) {
-                    if ((header_ret = ff_vc1_parse_frame_header_adv(v, &s->gb)) < 0) {
+                    if ((header_ret = ff_vc1_parse_frame_header_adv(v, &s->gb, 0)) < 0) {
                         av_log(v->s.avctx, AV_LOG_ERROR, "Field header damaged\n");
                         ret = AVERROR_INVALIDDATA;
                         if (avctx->err_recognition & AV_EF_EXPLODE)
@@ -1063,7 +1063,7 @@ static int vc1_decode_frame(AVCodecContext *avctx, void *data,
                     }
                 } else if (get_bits1(&s->gb)) {
                     v->pic_header_flag = 1;
-                    if ((header_ret = ff_vc1_parse_frame_header_adv(v, &s->gb)) < 0) {
+                    if ((header_ret = ff_vc1_parse_frame_header_adv(v, &s->gb, 0)) < 0) {
                         av_log(v->s.avctx, AV_LOG_ERROR, "Slice header damaged\n");
                         ret = AVERROR_INVALIDDATA;
                         if (avctx->err_recognition & AV_EF_EXPLODE)

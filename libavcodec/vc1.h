@@ -400,7 +400,6 @@ typedef struct VC1Context{
 
     int end_mb_x;                ///< Horizontal macroblock limit (used only by mss2)
 
-    int parse_only;              ///< Context is used within parser
     int resync_marker;           ///< could this stream contain resync markers
 } VC1Context;
 
@@ -415,8 +414,8 @@ int ff_vc1_decode_sequence_header(VC1Context *v, GetBitContext *gb);
 
 int ff_vc1_decode_entry_point(VC1Context *v, GetBitContext *gb);
 
-int ff_vc1_parse_frame_header    (VC1Context *v, GetBitContext *gb);
-int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext *gb);
+int ff_vc1_parse_frame_header    (VC1Context *v, GetBitContext *gb, int parse_only);
+int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext *gb, int parse_only);
 int ff_vc1_init_common(VC1Context *v);
 
 int  ff_vc1_decode_init_alloc_tables(VC1Context *v);
