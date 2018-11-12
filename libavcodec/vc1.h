@@ -197,6 +197,7 @@ typedef struct VC1Context{
     int level;            ///< 3 bits, for Advanced/Simple Profile, provided by TS layer
     int chromaformat;     ///< 2 bits, 2=4:2:0, only defined
     int postprocflag;     ///< Per-frame processing suggestion flag present
+    int max_coded_width, max_coded_height;
     int broadcast;        ///< TFF/RFF present
     int interlace;        ///< Progressive/interlaced (RPTFTM syntax element)
     int tfcntrflag;       ///< TFCNTR present
@@ -220,7 +221,6 @@ typedef struct VC1Context{
     int profile;          ///< 2 bits, Profile
     int frmrtq_postproc;  ///< 3 bits,
     int bitrtq_postproc;  ///< 5 bits, quantized framerate-based postprocessing strength
-    int max_coded_width, max_coded_height;
     int fastuvmc;         ///< Rounding of qpel vector to hpel ? (not in Simple)
     int extended_mv;      ///< Ext MV in P/B (not in Simple)
     int dquant;           ///< How qscale varies with MBs, 2 bits (not in Simple)
