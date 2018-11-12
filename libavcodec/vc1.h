@@ -189,7 +189,6 @@ typedef struct VC1Context{
     int rangered;         ///< RANGEREDFRM (range reduction) syntax element present
                           ///< at frame level
     int res_rtm_flag;     ///< reserved, set to 1
-    int reserved;         ///< reserved
     //@}
 
     /** Advanced Profile */
