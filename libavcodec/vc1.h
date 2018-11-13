@@ -209,6 +209,8 @@ typedef struct VC1Context{
     int hrd_param_flag;   ///< Presence of Hypothetical Reference
                           ///< Decoder parameters
     int psf;              ///< Progressive Segmented Frame
+    int disp_horiz_size, disp_vert_size;
+    AVRational aspect_ratio;
     //@}
 
     /** Sequence header data for all Profiles

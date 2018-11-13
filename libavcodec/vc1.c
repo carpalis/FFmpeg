@@ -445,30 +445,25 @@ static int decode_sequence_header_adv(VC1Context *v, GetBitContext *gb)
     }
     v->s.max_b_frames = v->s.avctx->max_b_frames = 7;
     if (get_bits1(gb)) { //Display Info - decoding is not affected by it
-        int w, h, ar = 0;
+        int ar = 0;
         av_log(v->s.avctx, AV_LOG_DEBUG, "Display extended info:\n");
-        w = get_bits(gb, 14) + 1;
-        h = get_bits(gb, 14) + 1;
-        av_log(v->s.avctx, AV_LOG_DEBUG, "Display dimensions: %ix%i\n", w, h);
+        v->disp_horiz_size = get_bits(gb, 14) + 1;
+        v->disp_vert_size = get_bits(gb, 14) + 1;
+        av_log(v->s.avctx, AV_LOG_DEBUG, "Display dimensions: %ix%i\n",
+               v->disp_horiz_size, v->disp_vert_size);
         if (get_bits1(gb))
             ar = get_bits(gb, 4);
         if (ar && ar < 14) {
-            v->s.avctx->sample_aspect_ratio = ff_vc1_pixel_aspect[ar];
+            v->aspect_ratio = ff_vc1_pixel_aspect[ar];
         } else if (ar == 15) {
-            w = get_bits(gb, 8) + 1;
-            h = get_bits(gb, 8) + 1;
-            v->s.avctx->sample_aspect_ratio = (AVRational){w, h};
+            v->aspect_ratio.num = get_bits(gb, 8) + 1;
+            v->aspect_ratio.den = get_bits(gb, 8) + 1;
         } else {
-            av_reduce(&v->s.avctx->sample_aspect_ratio.num,
-                      &v->s.avctx->sample_aspect_ratio.den,
-                      v->s.avctx->height * w,
-                      v->s.avctx->width * h,
-                      1 << 30);
+            v->aspect_ratio = (AVRational){0, 1};
         }
-        ff_set_sar(v->s.avctx, v->s.avctx->sample_aspect_ratio);
-        av_log(v->s.avctx, AV_LOG_DEBUG, "Aspect: %i:%i\n",
-               v->s.avctx->sample_aspect_ratio.num,
-               v->s.avctx->sample_aspect_ratio.den);
+        av_log(v->s.avctx, AV_LOG_DEBUG, "Aspect ratio: %i:%i\n",
+               v->aspect_ratio.num,
+               v->aspect_ratio.den);
 
         if (get_bits1(gb)) { //framerate stuff
             if (get_bits1(gb)) {
@@ -490,6 +485,10 @@ static int decode_sequence_header_adv(VC1Context *v, GetBitContext *gb)
             v->transfer_char = get_bits(gb, 8);
             v->matrix_coef   = get_bits(gb, 8);
         }
+    } else {
+        v->disp_horiz_size = v->max_coded_width;
+        v->disp_vert_size = v->max_coded_height;
+        v->aspect_ratio = (AVRational){0, 1};
     }
 
     v->hrd_param_flag = get_bits1(gb);
@@ -544,6 +543,23 @@ int ff_vc1_decode_entry_point(AVCodecContext *avctx, VC1Context *v, GetBitContex
         av_log(avctx, AV_LOG_ERROR, "Failed to set dimensions %d %d\n", w, h);
         return ret;
     }
+    if (v->aspect_ratio.num)
+        av_reduce(&avctx->sample_aspect_ratio.num,
+                  &avctx->sample_aspect_ratio.den,
+                  v->disp_horiz_size * v->aspect_ratio.num * h,
+                  v->disp_vert_size * v->aspect_ratio.den * w,
+                  INT_MAX);
+    else if (v->disp_horiz_size != w || v->disp_vert_size != h)
+        av_reduce(&avctx->sample_aspect_ratio.num,
+                  &avctx->sample_aspect_ratio.den,
+                  v->disp_horiz_size * h,
+                  v->disp_vert_size * w,
+                  INT_MAX);
+    else
+        av_reduce(&v->aspect_ratio.num, &v->aspect_ratio.den,
+                  v->aspect_ratio.num, v->aspect_ratio.den,
+                  256);
+    ff_set_sar(avctx, avctx->sample_aspect_ratio);
 
     if (v->extended_mv)
         v->extended_dmv = get_bits1(gb);
