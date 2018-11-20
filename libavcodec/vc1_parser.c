@@ -69,7 +69,7 @@ static void vc1_extract_header(AVCodecParserContext *s, AVCodecContext *avctx,
     init_get_bits(&gb, buf, buf_size * 8);
     switch (vpc->prev_start_code) {
     case VC1_CODE_SEQHDR & 0xFF:
-        ff_vc1_decode_sequence_header(&vpc->v, &gb);
+        ff_vc1_decode_sequence_header(&vpc->v, &gb, 1);
         break;
     case VC1_CODE_ENTRYPOINT & 0xFF:
         ff_vc1_decode_entry_point(&vpc->v, &gb);

@@ -447,7 +447,7 @@ static av_cold int vc1_decode_init(AVCodecContext *avctx)
 
         init_get_bits(&gb, avctx->extradata, avctx->extradata_size*8);
 
-        if ((ret = ff_vc1_decode_sequence_header(v, &gb)) < 0)
+        if ((ret = ff_vc1_decode_sequence_header(v, &gb, 0)) < 0)
           return ret;
 
         count = avctx->extradata_size*8 - get_bits_count(&gb);
@@ -485,7 +485,7 @@ static av_cold int vc1_decode_init(AVCodecContext *avctx)
             init_get_bits(&gb, buf2, buf2_size * 8);
             switch (AV_RB32(start)) {
             case VC1_CODE_SEQHDR:
-                if ((ret = ff_vc1_decode_sequence_header(v, &gb)) < 0) {
+                if ((ret = ff_vc1_decode_sequence_header(v, &gb, 0)) < 0) {
                     av_free(buf2);
                     return ret;
                 }
