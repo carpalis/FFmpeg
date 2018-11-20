@@ -191,8 +191,7 @@ const uint8_t ff_vc1_bfraction_codes[23] = {
 };
 
 //Same as H.264
-const AVRational ff_vc1_pixel_aspect[16] = {
-    {   0,  1 },
+const AVRational ff_vc1_pixel_aspect[13] = {
     {   1,  1 },
     {  12, 11 },
     {  10, 11 },
@@ -206,8 +205,6 @@ const AVRational ff_vc1_pixel_aspect[16] = {
     {  15, 11 },
     {  64, 33 },
     { 160, 99 },
-    {   0,  1 },
-    {   0,  1 }
 };
 
 /* BitPlane IMODE - such a small table... */

@@ -459,7 +459,7 @@ static int decode_sequence_header_adv(VC1Context *v, GetBitContext *gb)
         if (get_bits1(gb))
             ar = get_bits(gb, 4);
         if (ar && ar < 14) {
-            v->aspect_ratio = ff_vc1_pixel_aspect[ar];
+            v->aspect_ratio = ff_vc1_pixel_aspect[ar - 1];
         } else if (ar == 15) {
             v->aspect_ratio.num = get_bits(gb, 8) + 1;
             v->aspect_ratio.den = get_bits(gb, 8) + 1;

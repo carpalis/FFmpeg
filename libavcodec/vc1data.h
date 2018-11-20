@@ -104,7 +104,7 @@ extern const uint8_t ff_vc1_bfraction_bits[23];
 extern const uint8_t ff_vc1_bfraction_codes[23];
 
 //Same as H.264
-extern const AVRational ff_vc1_pixel_aspect[16];
+extern const AVRational ff_vc1_pixel_aspect[13];
 
 /* BitPlane IMODE - such a small table... */
 extern const uint8_t ff_vc1_imode_codes[7];
