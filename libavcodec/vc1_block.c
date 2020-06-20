@@ -1147,7 +1147,7 @@ static int vc1_decode_p_block(VC1Context *v, int16_t block[64], int n,
     }
     if ((ttblk != TT_8X8 && ttblk != TT_4X4)
         && ((v->ttmbf || (ttmb != -1 && (ttmb & 8) && !first_block))
-            || (!v->res_rtm_flag && !first_block))) {
+            || ((v->seq->profile < PROFILE_ADVANCED && !((VC1SimpleSeqCtx*)v->seq)->res_rtm_flag) && !first_block))) {
         subblkpat = decode012(gb);
         if (subblkpat)
             subblkpat ^= 3; // swap decoded pattern bits
@@ -2987,6 +2987,7 @@ static void vc1_decode_skip_blocks(VC1Context *v)
 
 void ff_vc1_decode_blocks(VC1Context *v)
 {
+    VC1SeqCtx *seq = v->seq;
 
     v->s.esc3_level_length = 0;
     if (v->x8_type) {
@@ -3005,7 +3006,7 @@ void ff_vc1_decode_blocks(VC1Context *v)
         v->top_blk_idx     =  2;
         switch (v->s.pict_type) {
         case AV_PICTURE_TYPE_I:
-            if (v->profile == PROFILE_ADVANCED)
+            if (seq->profile == PROFILE_ADVANCED)
                 vc1_decode_i_blocks_adv(v);
             else
                 vc1_decode_i_blocks(v);
@@ -3018,7 +3019,7 @@ void ff_vc1_decode_blocks(VC1Context *v)
             break;
         case AV_PICTURE_TYPE_B:
             if (v->bi_type) {
-                if (v->profile == PROFILE_ADVANCED)
+                if (seq->profile == PROFILE_ADVANCED)
                     vc1_decode_i_blocks_adv(v);
                 else
                     vc1_decode_i_blocks(v);

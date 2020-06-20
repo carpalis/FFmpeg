@@ -75,7 +75,7 @@ static inline int vc1_has_ACPRED_bitplane(const VC1Context *v)
 {
     if (v->acpred_is_raw)
         return 0;
-    return v->profile == PROFILE_ADVANCED &&
+    return v->seq->profile == PROFILE_ADVANCED &&
            (v->s.pict_type == AV_PICTURE_TYPE_I ||
             (v->s.pict_type == AV_PICTURE_TYPE_B && v->bi_type));
 }
@@ -85,7 +85,7 @@ static inline int vc1_has_OVERFLAGS_bitplane(const VC1Context *v)
 {
     if (v->overflg_is_raw)
         return 0;
-    return v->profile == PROFILE_ADVANCED &&
+    return v->seq->profile == PROFILE_ADVANCED &&
            (v->s.pict_type == AV_PICTURE_TYPE_I ||
             (v->s.pict_type == AV_PICTURE_TYPE_B && v->bi_type)) &&
            (v->overlap && v->pq <= 8) &&
@@ -267,12 +267,15 @@ static int vaapi_vc1_start_frame(AVCodecContext *avctx, av_unused const uint8_t 
             .tfcntrflag                    = v->tfcntrflag,
             .finterpflag                   = v->finterpflag,
             .psf                           = v->psf,
-            .multires                      = v->multires,
+            .multires                      = v->seq->profile < PROFILE_ADVANCED &&
+                                             ((VC1SimpleSeqCtx*)v->seq)->multires,
             .overlap                       = v->overlap,
             .syncmarker                    = v->resync_marker,
-            .rangered                      = v->rangered,
+            .rangered                      = (v->seq->profile == PROFILE_MAIN ||
+                                              v->seq->profile == PROFILE_COMPLEX) &&
+                                             ((VC1MainSeqCtx*)v->seq)->rangered,
             .max_b_frames                  = s->avctx->max_b_frames,
-            .profile                       = v->profile,
+            .profile                       = v->seq->profile,
         },
         .coded_width                       = s->avctx->coded_width,
         .coded_height                      = s->avctx->coded_height,

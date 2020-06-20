@@ -63,7 +63,7 @@ static void fill_picture_parameters(AVCodecContext *avctx,
         pp->wBackwardRefPictureIndex = ff_dxva2_get_surface_index(avctx, ctx, s->next_picture.f);
     else
         pp->wBackwardRefPictureIndex = 0xffff;
-    if (v->profile == PROFILE_ADVANCED) {
+    if (v->seq->profile == PROFILE_ADVANCED) {
         /* It is the cropped width/height -1 of the frame */
         pp->wPicWidthInMBminus1 = avctx->width  - 1;
         pp->wPicHeightInMBminus1= avctx->height - 1;
@@ -84,11 +84,11 @@ static void fill_picture_parameters(AVCodecContext *avctx,
     pp->bSecondField            = v->interlace && v->fcm == ILACE_FIELD && v->second_field;
     pp->bPicIntra               = s->pict_type == AV_PICTURE_TYPE_I || v->bi_type;
     pp->bPicBackwardPrediction  = s->pict_type == AV_PICTURE_TYPE_B && !v->bi_type;
-    pp->bBidirectionalAveragingMode = (1                                           << 7) |
+    pp->bBidirectionalAveragingMode = (1                                              << 7) |
                                       ((DXVA_CONTEXT_CFG_INTRARESID(avctx, ctx) != 0) << 6) |
                                       ((DXVA_CONTEXT_CFG_RESIDACCEL(avctx, ctx) != 0) << 5) |
-                                      (intcomp                                     << 4) |
-                                      ((v->profile == PROFILE_ADVANCED)            << 3);
+                                      (intcomp                                        << 4) |
+                                      ((v->seq->profile == PROFILE_ADVANCED)          << 3);
     pp->bMVprecisionAndChromaRelation = ((v->mv_mode == MV_PMODE_1MV_HPEL_BILIN) << 3) |
                                         (1                                       << 2) |
                                         (0                                       << 1) |
@@ -108,28 +108,31 @@ static void fill_picture_parameters(AVCodecContext *avctx,
                                   (v->extended_mv  << 3) |
                                   (v->dquant       << 1) |
                                   (v->vstransform      );
-    pp->bPicOverflowBlocks      = (v->quantizer_mode << 6) |
-                                  (v->multires       << 5) |
-                                  (v->resync_marker  << 4) |
-                                  (v->rangered       << 3) |
-                                  (s->max_b_frames       );
+    pp->bPicOverflowBlocks      = (v->quantizer_mode                     << 6) |
+                                  ((v->seq->profile < PROFILE_ADVANCED &&
+                                   ((VC1SimpleSeqCtx*)v->seq)->multires) << 5) |
+                                  (v->resync_marker                      << 4) |
+                                  (((v->seq->profile == PROFILE_MAIN ||
+                                    v->seq->profile == PROFILE_COMPLEX) &&
+                                   ((VC1MainSeqCtx*)v->seq)->rangered)   << 3) |
+                                  (s->max_b_frames                           );
     pp->bPicExtrapolation       = (!v->interlace || v->fcm == PROGRESSIVE) ? 1 : 2;
-    pp->bPicDeblocked           = ((!pp->bPicBackwardPrediction && v->overlap)        << 6) |
-                                  ((v->profile != PROFILE_ADVANCED && v->rangeredfrm) << 5) |
-                                  (s->loop_filter                                     << 1);
-    pp->bPicDeblockConfined     = (v->postprocflag             << 7) |
-                                  (v->broadcast                << 6) |
-                                  (v->interlace                << 5) |
-                                  (v->tfcntrflag               << 4) |
-                                  (v->finterpflag              << 3) |
+    pp->bPicDeblocked           = ((!pp->bPicBackwardPrediction && v->overlap)             << 6) |
+                                  ((v->seq->profile != PROFILE_ADVANCED && v->rangeredfrm) << 5) |
+                                  (s->loop_filter                                          << 1);
+    pp->bPicDeblockConfined     = (v->postprocflag                     << 7) |
+                                  (v->broadcast                        << 6) |
+                                  (v->interlace                        << 5) |
+                                  (v->tfcntrflag                       << 4) |
+                                  (v->finterpflag                      << 3) |
                                   ((s->pict_type != AV_PICTURE_TYPE_B) << 2) |
-                                  (v->psf                      << 1) |
-                                  (v->extended_dmv                 );
+                                  (v->psf                              << 1) |
+                                  (v->extended_dmv                         );
     if (s->pict_type != AV_PICTURE_TYPE_I)
         pp->bPic4MVallowed      = v->mv_mode == MV_PMODE_MIXED_MV ||
                                   (v->mv_mode == MV_PMODE_INTENSITY_COMP &&
                                    v->mv_mode2 == MV_PMODE_MIXED_MV);
-    if (v->profile == PROFILE_ADVANCED)
+    if (v->seq->profile == PROFILE_ADVANCED)
         pp->bPicOBMC            = (v->range_mapy_flag  << 7) |
                                   (v->range_mapy       << 4) |
                                   (v->range_mapuv_flag << 3) |

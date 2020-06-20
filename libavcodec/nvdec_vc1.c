@@ -70,16 +70,19 @@ static int nvdec_vc1_start_frame(AVCodecContext *avctx, const uint8_t *buffer, u
                                  s->pict_type == AV_PICTURE_TYPE_P,
             .progressive_fcm   = v->fcm == 0,
 
-            .profile           = v->profile,
+            .profile           = v->seq->profile,
             .postprocflag      = v->postprocflag,
             .pulldown          = v->broadcast,
             .interlace         = v->interlace,
             .tfcntrflag        = v->tfcntrflag,
             .finterpflag       = v->finterpflag,
             .psf               = v->psf,
-            .multires          = v->multires,
+            .multires          = v->seq->profile < PROFILE_ADVANCED &&
+                                 ((VC1SimpleSeqCtx*)v->seq)->multires,
             .syncmarker        = v->resync_marker,
-            .rangered          = v->rangered,
+            .rangered          = (v->seq->profile == PROFILE_MAIN ||
+                                  v->seq->profile == PROFILE_COMPLEX) &&
+                                 ((VC1MainSeqCtx*)v->seq)->rangered,
             .maxbframes        = s->max_b_frames,
 
             .panscan_flag      = v->panscanflag,

@@ -166,28 +166,107 @@ enum Imode {
 };
 /** @} */ //imode defines
 
+#define VC1SeqCtx_PROFILE \
+    uint8_t profile; \
+    void (*init)(VC1Context*); \
+    ;
+
+#define VC1SeqCtx_COMMON \
+    uint8_t level; \
+    uint8_t frmrtq_postproc; \
+    uint8_t bitrtq_postproc; \
+    uint8_t res_y411; \
+    uint8_t res_sprite; \
+    uint8_t res_x8; \
+    uint8_t multires; \
+    uint8_t res_fasttx; \
+    uint8_t vstransform; \
+    uint8_t res_transtab; \
+    uint8_t overlap; \
+    uint8_t quantizer; \
+    uint8_t finterpflag; \
+    uint8_t res_rtm_flag; \
+    ;
+
+typedef struct VC1Context VC1Context;
+
+typedef struct VC1SeqCtx VC1SeqCtx;
+
+struct VC1SeqCtx {
+    VC1SeqCtx_PROFILE;
+};
+
+typedef struct VC1SimpleSeqCtx {
+    VC1SeqCtx_PROFILE;
+    VC1SeqCtx_COMMON;
+} VC1SimpleSeqCtx;
+
+typedef struct VC1MainSeqCtx {
+    VC1SeqCtx_PROFILE;
+    VC1SeqCtx_COMMON;
+
+    uint8_t loopfilter;
+    uint8_t fastuvmc;
+    uint8_t extended_mv;
+    uint8_t dquant;
+    uint8_t syncmarker;
+    uint8_t rangered;
+    uint8_t maxbframes;
+} VC1MainSeqCtx;
+
+typedef struct VC1MainSeqCtx VC1ComplexSeqCtx;
+
+typedef struct VC1AdvSeqCtx {
+    VC1SeqCtx_PROFILE;
+    uint8_t level;
+    uint8_t frmrtq_postproc;
+    uint8_t bitrtq_postproc;
+    uint8_t colordiff_format;
+    uint8_t postprocflag;
+    uint16_t max_coded_width;
+    uint16_t max_coded_height;
+    uint8_t pulldown;
+    uint8_t interlace;
+    uint8_t tfcntrflag;
+    uint8_t finterpflag;
+    uint8_t psf;
+    uint16_t disp_horiz_size;
+    uint16_t disp_vert_size;
+    AVRational aspect_ratio;
+    AVRational framerate;
+    uint8_t color_prim;
+    uint8_t transfer_char;
+    uint8_t matrix_coef;
+    uint8_t hrd_param_flag;
+    uint8_t hrd_num_leaky_buckets;
+} VC1AdvSeqCtx;
+
 /** The VC1 Context
  * @todo Change size wherever another size is more efficient
  * Many members are only used for Advanced Profile
  */
-typedef struct VC1Context{
+struct VC1Context{
     MpegEncContext s;
     IntraX8Context x8;
     H264ChromaContext h264chroma;
     VC1DSPContext vc1dsp;
 
+    AVCodecContext *avctx;
+
+    VC1SeqCtx *seq;
+
     /** Simple/Main Profile sequence header */
     //@{
-    int res_sprite;       ///< reserved, sprite mode
-    int res_y411;         ///< reserved, old interlaced mode
-    int res_x8;           ///< reserved
-    int multires;         ///< frame-level RESPIC syntax element present
-    int res_fasttx;       ///< reserved, always 1
-    int res_transtab;     ///< reserved, always 0
-    int rangered;         ///< RANGEREDFRM (range reduction) syntax element present
+//    int res_sprite;       ///< reserved, sprite mode
+//    int res_y411;         ///< reserved, old interlaced mode
+//    int res_x8;           ///< reserved
+//    int multires;         ///< frame-level RESPIC syntax element present
+//    int res_fasttx;       ///< reserved, always 1
+//    int res_transtab;     ///< reserved, always 0
+//    int rangered;         ///< RANGEREDFRM (range reduction) syntax element present
                           ///< at frame level
-    int res_rtm_flag;     ///< reserved, set to 1
-    int reserved;         ///< reserved
+//    int res_rtm_flag;     ///< reserved, set to 1
+//    int reserved;         ///< reserved
     //@}
 
     /** Advanced Profile */
@@ -213,9 +292,9 @@ typedef struct VC1Context{
      * TODO: choose between ints, uint8_ts and monobit flags
      */
     //@{
-    int profile;          ///< 2 bits, Profile
-    int frmrtq_postproc;  ///< 3 bits,
-    int bitrtq_postproc;  ///< 5 bits, quantized framerate-based postprocessing strength
+//    int profile;          ///< 2 bits, Profile
+//    int frmrtq_postproc;  ///< 3 bits,
+//    int bitrtq_postproc;  ///< 5 bits, quantized framerate-based postprocessing strength
     int max_coded_width, max_coded_height;
     int fastuvmc;         ///< Rounding of qpel vector to hpel ? (not in Simple)
     int extended_mv;      ///< Ext MV in P/B (not in Simple)
@@ -315,8 +394,8 @@ typedef struct VC1Context{
     uint8_t uvsamp;
     uint8_t postproc;
     int hrd_num_leaky_buckets;
-    uint8_t bit_rate_exponent;
-    uint8_t buffer_size_exponent;
+//    uint8_t bit_rate_exponent;
+//    uint8_t buffer_size_exponent;
     uint8_t* acpred_plane;       ///< AC prediction flags bitplane
     int acpred_is_raw;
     uint8_t* over_flags_plane;   ///< Overflags bitplane
@@ -398,7 +477,7 @@ typedef struct VC1Context{
 
     int parse_only;              ///< Context is used within parser
     int resync_marker;           ///< could this stream contain resync markers
-} VC1Context;
+};
 
 /**
  * Decode Simple/Main Profiles sequence header
@@ -407,13 +486,14 @@ typedef struct VC1Context{
  * @param gb GetBit context initialized from Codec context extra_data
  * @return Status
  */
-int ff_vc1_decode_sequence_header(AVCodecContext *avctx, VC1Context *v, GetBitContext *gb);
+int ff_vc1_decode_sequence_header(VC1Context *v, GetBitContext *gb);
 
 int ff_vc1_decode_entry_point(AVCodecContext *avctx, VC1Context *v, GetBitContext *gb);
 
 int ff_vc1_parse_frame_header    (VC1Context *v, GetBitContext *gb);
 int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext *gb);
 int ff_vc1_init_common(VC1Context *v);
+int ff_vc1_new_sequence_context(unsigned int profile, VC1SeqCtx **seq);
 
 int  ff_vc1_decode_init_alloc_tables(VC1Context *v);
 void ff_vc1_init_transposed_scantables(VC1Context *v);

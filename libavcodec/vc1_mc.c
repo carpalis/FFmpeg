@@ -171,6 +171,7 @@ static av_always_inline int get_chroma_mv(VC1Context *v, int dir, int16_t *tx, i
  */
 void ff_vc1_mc_1mv(VC1Context *v, int dir)
 {
+    VC1SeqCtx *seq = v->seq;
     MpegEncContext *s = &v->s;
     H264ChromaContext *h264chroma = &v->h264chroma;
     uint8_t *srcY, *srcU, *srcV;
@@ -255,7 +256,7 @@ void ff_vc1_mc_1mv(VC1Context *v, int dir)
     uvsrc_x = s->mb_x *  8 + (uvmx >> 2);
     uvsrc_y = s->mb_y *  8 + (uvmy >> 2);
 
-    if (v->profile != PROFILE_ADVANCED) {
+    if (seq->profile != PROFILE_ADVANCED) {
         src_x   = av_clip(  src_x, -16, s->mb_width  * 16);
         src_y   = av_clip(  src_y, -16, s->mb_height * 16);
         uvsrc_x = av_clip(uvsrc_x,  -8, s->mb_width  *  8);
@@ -451,6 +452,7 @@ void ff_vc1_mc_1mv(VC1Context *v, int dir)
  */
 void ff_vc1_mc_4mv_luma(VC1Context *v, int n, int dir, int avg)
 {
+    VC1SeqCtx *seq = v->seq;
     MpegEncContext *s = &v->s;
     uint8_t *srcY;
     int dxy, mx, my, src_x, src_y;
@@ -542,7 +544,7 @@ void ff_vc1_mc_4mv_luma(VC1Context *v, int n, int dir, int avg)
     else
         src_y = s->mb_y * 16 + ((n > 1) ? 1 : 0) + (my >> 2);
 
-    if (v->profile != PROFILE_ADVANCED) {
+    if (seq->profile != PROFILE_ADVANCED) {
         src_x = av_clip(src_x, -16, s->mb_width  * 16);
         src_y = av_clip(src_y, -16, s->mb_height * 16);
     } else {
@@ -633,6 +635,7 @@ void ff_vc1_mc_4mv_luma(VC1Context *v, int n, int dir, int avg)
  */
 void ff_vc1_mc_4mv_chroma(VC1Context *v, int dir)
 {
+    VC1SeqCtx *seq = v->seq;
     MpegEncContext *s = &v->s;
     H264ChromaContext *h264chroma = &v->h264chroma;
     uint8_t *srcU, *srcV;
@@ -688,7 +691,7 @@ void ff_vc1_mc_4mv_chroma(VC1Context *v, int dir)
     uvsrc_x = s->mb_x * 8 + (uvmx >> 2);
     uvsrc_y = s->mb_y * 8 + (uvmy >> 2);
 
-    if (v->profile != PROFILE_ADVANCED) {
+    if (seq->profile != PROFILE_ADVANCED) {
         uvsrc_x = av_clip(uvsrc_x, -8, s->mb_width  * 8);
         uvsrc_y = av_clip(uvsrc_y, -8, s->mb_height * 8);
     } else {
@@ -1003,6 +1006,7 @@ void ff_vc1_mc_4mv_chroma4(VC1Context *v, int dir, int dir2, int avg)
  */
 void ff_vc1_interp_mc(VC1Context *v)
 {
+    VC1SeqCtx *seq = v->seq;
     MpegEncContext *s = &v->s;
     H264ChromaContext *h264chroma = &v->h264chroma;
     uint8_t *srcY, *srcU, *srcV;
@@ -1041,7 +1045,7 @@ void ff_vc1_interp_mc(VC1Context *v)
     uvsrc_x = s->mb_x *  8 + (uvmx >> 2);
     uvsrc_y = s->mb_y *  8 + (uvmy >> 2);
 
-    if (v->profile != PROFILE_ADVANCED) {
+    if (seq->profile != PROFILE_ADVANCED) {
         src_x   = av_clip(  src_x, -16, s->mb_width  * 16);
         src_y   = av_clip(  src_y, -16, s->mb_height * 16);
         uvsrc_x = av_clip(uvsrc_x,  -8, s->mb_width  *  8);

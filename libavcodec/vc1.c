@@ -264,56 +264,338 @@ static int vop_dquant_decoding(VC1Context *v)
     return 0;
 }
 
+static int decode_sequence_header_smc(VC1Context *v, GetBitContext *gb);
 static int decode_sequence_header_adv(VC1Context *v, GetBitContext *gb);
 
+void vc1_init_sequence_context_smc(VC1Context *v);
+void vc1_init_sequence_context_adv(VC1Context *v);
+
+int ff_vc1_new_sequence_context(unsigned int profile, VC1SeqCtx **seq)
+{
+    if (*seq && (*seq)->profile != profile)
+        av_freep(seq);
+
+    switch (profile) {
+    case PROFILE_SIMPLE:
+        if (!*seq) {
+            *seq = av_malloc(sizeof(VC1SimpleSeqCtx));
+            if (!*seq)
+                return AVERROR(ENOMEM);
+        }
+
+        ((VC1SimpleSeqCtx*)*seq)->init = vc1_init_sequence_context_smc;
+        break;
+
+    case PROFILE_MAIN:
+        if (!*seq) {
+            *seq = av_malloc(sizeof(VC1MainSeqCtx));
+            if (!*seq)
+                return AVERROR(ENOMEM);
+        }
+
+        ((VC1MainSeqCtx*)*seq)->init = vc1_init_sequence_context_smc;
+        break;
+
+    case PROFILE_COMPLEX:
+        if (!*seq) {
+            *seq = av_malloc(sizeof(VC1ComplexSeqCtx));
+            if (!*seq)
+                return AVERROR(ENOMEM);
+        }
+
+        ((VC1ComplexSeqCtx*)*seq)->init = vc1_init_sequence_context_smc;
+        break;
+
+    case PROFILE_ADVANCED:
+        if (!*seq) {
+            *seq = av_malloc(sizeof(VC1AdvSeqCtx));
+            if (!*seq)
+                return AVERROR(ENOMEM);
+        }
+
+        ((VC1AdvSeqCtx*)*seq)->init = vc1_init_sequence_context_adv;
+
+        // default values
+        ((VC1AdvSeqCtx*)*seq)->aspect_ratio = (AVRational){ .num = 0, .den = 1};
+        ((VC1AdvSeqCtx*)*seq)->framerate = (AVRational){ .num = 0, .den = 1};
+        ((VC1AdvSeqCtx*)*seq)->color_prim = 1;
+        ((VC1AdvSeqCtx*)*seq)->transfer_char = 1;
+        ((VC1AdvSeqCtx*)*seq)->matrix_coef = 6;
+        break;
+
+    default:
+        av_assert0(0);
+    }
+
+    (*seq)->profile = profile;
+
+    return 0;
+}
+
+void vc1_init_sequence_context_smc(VC1Context *v) {
+    AVCodecContext *avctx = v->avctx;
+    VC1SimpleSeqCtx *simple_seq = (VC1SimpleSeqCtx*)v->seq;
+    VC1MainSeqCtx *main_seq = (VC1MainSeqCtx*)v->seq;
+
+    switch (v->seq->profile) {
+    case PROFILE_SIMPLE:
+        break;
+
+    case PROFILE_MAIN:
+    case PROFILE_COMPLEX:
+        if (avctx->skip_loop_filter >= AVDISCARD_ALL)
+            v->s.loop_filter = main_seq->loopfilter = 0;
+        break;
+
+    default:
+        av_assert0(0);
+    }
+}
+
+void vc1_init_sequence_context_adv(VC1Context *v) {
+}
+
 /**
- * Decode Simple/Main Profiles sequence header
+ * Decode Sequence header
  * @see Figure 7-8, p16-17
  * @param avctx Codec context
  * @param gb GetBit context initialized from Codec context extra_data
  * @return Status
  */
-int ff_vc1_decode_sequence_header(AVCodecContext *avctx, VC1Context *v, GetBitContext *gb)
+int ff_vc1_decode_sequence_header(VC1Context *v, GetBitContext *gb)
 {
-    av_log(avctx, AV_LOG_DEBUG, "Header: %0X\n", show_bits_long(gb, 32));
-    v->profile = get_bits(gb, 2);
-    if (v->profile == PROFILE_COMPLEX) {
-        av_log(avctx, AV_LOG_WARNING, "WMV3 Complex Profile is not fully supported\n");
-    }
+    AVCodecContext *avctx = v->avctx;
+    unsigned int profile;
+    int ret;
 
-    if (v->profile == PROFILE_ADVANCED) {
-        v->zz_8x4 = ff_vc1_adv_progressive_8x4_zz;
-        v->zz_4x8 = ff_vc1_adv_progressive_4x8_zz;
-        return decode_sequence_header_adv(v, gb);
-    } else {
-        v->chromaformat = 1;
-        v->zz_8x4 = ff_wmv2_scantableA;
-        v->zz_4x8 = ff_wmv2_scantableB;
-        v->res_y411   = get_bits1(gb);
-        v->res_sprite = get_bits1(gb);
-        if (v->res_y411) {
-            av_log(avctx, AV_LOG_ERROR,
-                   "Old interlaced mode is not supported\n");
-            return -1;
+    av_log(avctx, AV_LOG_DEBUG, "Sequence header: %0X\n",
+           show_bits_long(gb, 32));
+
+    profile = get_bits(gb, 2); // PROFILE
+    if (profile == PROFILE_COMPLEX) {
+        if (avctx->codec_id == AV_CODEC_ID_VC1) {
+            av_log(avctx, AV_LOG_ERROR, "Reserved VC-1 PROFILE (Complex)\n");
+            return AVERROR_INVALIDDATA;
+        } else {
+            av_log(avctx, AV_LOG_WARNING,
+                   "WMV3 PROFILE (Complex) is not fully supported\n");
         }
     }
 
-    // (fps-2)/4 (->30)
-    v->frmrtq_postproc = get_bits(gb, 3); //common
-    // (bitrate-32kbps)/64kbps
-    v->bitrtq_postproc = get_bits(gb, 5); //common
-    v->s.loop_filter   = get_bits1(gb); //common
-    if (v->s.loop_filter == 1 && v->profile == PROFILE_SIMPLE) {
-        av_log(avctx, AV_LOG_ERROR,
-               "LOOPFILTER shall not be enabled in Simple Profile\n");
+    ret = ff_vc1_new_sequence_context(profile, &v->seq);
+    if (ret < 0)
+        return ret;
+
+    switch (profile) {
+    case PROFILE_SIMPLE:
+    case PROFILE_MAIN:
+    case PROFILE_COMPLEX:
+        ret = decode_sequence_header_smc(v, gb);
+        if (ret < 0)
+            return ret;
+
+        // TODO: move to better place
+        v->chromaformat = 1;
+        v->zz_8x4 = ff_wmv2_scantableA;
+        v->zz_4x8 = ff_wmv2_scantableB;
+        break;
+
+    case PROFILE_ADVANCED:
+        ret = decode_sequence_header_adv(v, gb);
+        if (ret < 0)
+            return ret;
+
+        // TODO: move to better place
+        v->zz_8x4 = ff_vc1_adv_progressive_8x4_zz;
+        v->zz_4x8 = ff_vc1_adv_progressive_4x8_zz;
+        break;
+
+    default:
+        av_assert0(0);
     }
-    if (v->s.avctx->skip_loop_filter >= AVDISCARD_ALL)
+
+    return 0;
+}
+
+static int decode_sequence_header_smc(VC1Context *v, GetBitContext *gb)
+{
+    AVCodecContext *avctx = v->avctx;
+    VC1SimpleSeqCtx *seq = (VC1SimpleSeqCtx*)v->seq;
+    VC1MainSeqCtx *main_seq = (VC1MainSeqCtx*)v->seq;
+    unsigned int loopfilter, fastuvmc, extended_mv, dquant;
+    unsigned int syncmarker, rangered, maxbframes;
+    uint32_t bits;
+    int ret = 0;
+
+    if (get_bits_left(gb) < 30)
+        return AVERROR_INVALIDDATA;
+
+    bits = get_bits_long(gb, 29);
+
+    seq->res_y411 = !!(bits & 1 << 28);   // PROFILE
+    seq->res_sprite = !!(bits & 1 << 27); // PROFILE
+
+    if (avctx->codec_id == AV_CODEC_ID_VC1) {
+        if (seq->res_y411 || seq->res_sprite) {
+            av_log(avctx, AV_LOG_ERROR, "Reserved VC-1 PROFILE (%s)\n",
+                   seq->profile == PROFILE_SIMPLE ? "Simple" : "Main");
+            return AVERROR_INVALIDDATA;
+        }
+    } else {
+        if (seq->res_y411) {
+            av_log(avctx, AV_LOG_ERROR,
+                   "Old interlaced mode is not supported\n");
+            return AVERROR_INVALIDDATA;
+        }
+    }
+
+    seq->frmrtq_postproc = bits >> 24 & UINT32_C(0b111);             // FRMRTQ_POSTPROC
+    seq->bitrtq_postproc = bits >> 19 & UINT32_C(0b11111);           // BITRTQ_POSTPROC
+    loopfilter = bits >> 18 & UINT32_C(1);                           // LOOPFILTER
+    seq->res_x8 = bits >> 17 & UINT32_C(1);                          // Reserved3
+    seq->multires = bits >> 16 & UINT32_C(1);                        // MULTIRES
+    seq->res_fasttx = bits >> 15 & UINT32_C(1);                      // Reserved4
+    fastuvmc = bits >> 14 & UINT32_C(1);                             // FASTUVMC
+    extended_mv = bits >> 13 & UINT32_C(1);                          // EXTENDED_MV
+    dquant = bits >> 11 & UINT32_C(0b11);                            // DQUANT
+    v->vstransform = seq->vstransform = bits >> 10 & UINT32_C(1);    // VSTRANSFORM
+    seq->res_transtab = bits >> 9 & UINT32_C(1);                     // Reserved5
+    v->overlap = seq->overlap = bits >> 8 & UINT32_C(1);             // OVERLAP
+    syncmarker = bits >> 7 & UINT32_C(1);                            // SYNCMARKER
+    rangered = bits >> 6 & UINT32_C(1);                              // RANGERED
+    maxbframes = bits >> 3 & UINT32_C(0b111);                        // MAXBFRAMES
+    v->quantizer_mode = seq->quantizer = bits >> 1 & UINT32_C(0b11); // QUANTIZER
+    v->finterpflag = seq->finterpflag = bits & UINT32_C(1);          // FINTERPFLAG
+
+    if (seq->res_sprite) {
+        int w = get_bits(gb, 11);
+        int h = get_bits(gb, 11);
+        int ret = ff_set_dimensions(v->s.avctx, w, h);
+        if (ret < 0) {
+            av_log(avctx, AV_LOG_ERROR, "Failed to set dimensions %d %d\n", w, h);
+            return ret;
+        }
+        skip_bits(gb, 5); //frame rate
+        // TODO: check double use of res_x8
+        seq->res_x8 = get_bits1(gb);
+        if (get_bits1(gb)) { // something to do with DC VLC selection
+            av_log(avctx, AV_LOG_ERROR, "Unsupported sprite feature\n");
+            return AVERROR_INVALIDDATA;
+        }
+        skip_bits(gb, 3); //slice code
+        seq->res_rtm_flag = 0;
+    } else {
+        seq->res_rtm_flag = get_bits1(gb); // Reserved6
+    }
+
+    //TODO: figure out what they mean (always 0x402F)
+    if (!seq->res_fasttx)
+        skip_bits(gb, 16);
+
+    av_log(avctx, AV_LOG_DEBUG,
+           "Profile %i:\n"
+           "frmrtq_postproc=%i, bitrtq_postproc=%i\n"
+           "LoopFilter=%i, MultiRes=%i, FastUVMC=%i, Extended MV=%i\n"
+           "Rangered=%i, VSTransform=%i, Overlap=%i, SyncMarker=%i\n"
+           "DQuant=%i, Quantizer mode=%i, Max B-frames=%i\n",
+           seq->profile,
+           seq->frmrtq_postproc, seq->bitrtq_postproc,
+           loopfilter, seq->multires, fastuvmc, extended_mv,
+           rangered, seq->vstransform, seq->overlap, syncmarker,
+           dquant, seq->quantizer, maxbframes);
+
+    switch (seq->profile) {
+    case PROFILE_SIMPLE:
+        if (loopfilter) {
+            av_log(avctx, AV_LOG_WARNING,
+                   "ignoring LOOPFILTER in Simple Profile\n");
+        }
         v->s.loop_filter = 0;
 
-    v->res_x8          = get_bits1(gb); //reserved
-    v->multires        = get_bits1(gb);
-    v->res_fasttx      = get_bits1(gb);
-    if (!v->res_fasttx) {
+        if (!fastuvmc) {
+            av_log(avctx, AV_LOG_WARNING,
+                   "forcing FASTUVMC in Simple Profile\n");
+        }
+        v->fastuvmc = 1;
+
+        if (extended_mv) {
+            av_log(avctx, AV_LOG_WARNING,
+                   "ignoring EXTENDED_MV in Simple Profile\n");
+        }
+        v->extended_mv = 0;
+
+        if (dquant != 0) {
+            av_log(avctx, AV_LOG_ERROR, "invalid DQUANT %i\n", dquant);
+            ret = AVERROR_INVALIDDATA;
+        }
+        v->dquant = 0;
+
+        if (syncmarker) {
+            av_log(avctx, AV_LOG_WARNING,
+                   "ignoring SYNCMARKER in Simple Profile\n");
+        }
+        v->resync_marker = 0;
+
+        if (rangered) {
+            av_log(avctx, AV_LOG_WARNING,
+                   "ignoring RANGERED in Simple Profile\n");
+        }
+
+        if (maxbframes) {
+            av_log(avctx, AV_LOG_WARNING,
+                   "ignoring MAXBFRAMES in Simple Profile\n");
+        }
+        v->s.max_b_frames = avctx->max_b_frames = 0;
+        break;
+
+    case PROFILE_MAIN:
+    case PROFILE_COMPLEX:
+        v->s.loop_filter = main_seq->loopfilter = loopfilter;
+        v->fastuvmc = main_seq->fastuvmc = fastuvmc;
+        v->extended_mv = main_seq->extended_mv = extended_mv;
+
+        if (dquant > 2) {
+            av_log(avctx, AV_LOG_ERROR, "reserved DQUANT %i\n", dquant);
+            ret = AVERROR_INVALIDDATA;
+        }
+        if (seq->multires && dquant != 0) {
+            av_log(avctx, AV_LOG_ERROR,
+                   "invalid MULTIRES DQUANT %i\n", dquant);
+            ret = AVERROR_INVALIDDATA;
+        }
+        v->dquant = main_seq->dquant = dquant;
+
+        v->resync_marker = main_seq->syncmarker = syncmarker;
+        main_seq->rangered = rangered;
+        v->s.max_b_frames = avctx->max_b_frames =
+            main_seq->maxbframes = maxbframes;
+        break;
+
+    default:
+        av_assert0(0);
+    }
+
+    if (avctx->codec_id == AV_CODEC_ID_VC1) {
+        if (seq->res_x8) {
+            av_log(avctx, AV_LOG_WARNING, "VC-1 Reserved3 should be unset\n");
+            seq->res_x8 = 0;
+        }
+        if (!seq->res_fasttx) {
+            av_log(avctx, AV_LOG_WARNING, "VC-1 Reserved4 should be set\n");
+            seq->res_fasttx = 1;
+        }
+        if (seq->res_transtab) {
+            av_log(avctx, AV_LOG_WARNING, "VC-1 Reserved5 should be unset\n");
+            seq->res_transtab = 0;
+        }
+        if (!seq->res_rtm_flag) {
+            av_log(avctx, AV_LOG_WARNING, "VC-1 Reserved6 should be set\n");
+            seq->res_rtm_flag = 1;
+        }
+    }
+
+    // TODO: move to better place
+    if (!seq->res_fasttx) {
         v->vc1dsp.vc1_inv_trans_8x8    = ff_simple_idct_int16_8bit;
         v->vc1dsp.vc1_inv_trans_8x4    = ff_simple_idct84_add;
         v->vc1dsp.vc1_inv_trans_4x8    = ff_simple_idct48_add;
@@ -324,184 +606,205 @@ int ff_vc1_decode_sequence_header(AVCodecContext *avctx, VC1Context *v, GetBitCo
         v->vc1dsp.vc1_inv_trans_4x4_dc = ff_simple_idct44_add;
     }
 
-    v->fastuvmc        = get_bits1(gb); //common
-    if (!v->profile && !v->fastuvmc) {
-        av_log(avctx, AV_LOG_ERROR,
-               "FASTUVMC unavailable in Simple Profile\n");
-        return -1;
-    }
-    v->extended_mv     = get_bits1(gb); //common
-    if (!v->profile && v->extended_mv) {
-        av_log(avctx, AV_LOG_ERROR,
-               "Extended MVs unavailable in Simple Profile\n");
-        return -1;
-    }
-    v->dquant          = get_bits(gb, 2); //common
-    v->vstransform     = get_bits1(gb); //common
-
-    v->res_transtab    = get_bits1(gb);
-    if (v->res_transtab) {
-        av_log(avctx, AV_LOG_ERROR,
-               "1 for reserved RES_TRANSTAB is forbidden\n");
-        return -1;
-    }
-
-    v->overlap         = get_bits1(gb); //common
-
-    v->resync_marker   = get_bits1(gb);
-    v->rangered        = get_bits1(gb);
-    if (v->rangered && v->profile == PROFILE_SIMPLE) {
-        av_log(avctx, AV_LOG_INFO,
-               "RANGERED should be set to 0 in Simple Profile\n");
-    }
-
-    v->s.max_b_frames = avctx->max_b_frames = get_bits(gb, 3); //common
-    v->quantizer_mode = get_bits(gb, 2); //common
-
-    v->finterpflag = get_bits1(gb); //common
-
-    if (v->res_sprite) {
-        int w = get_bits(gb, 11);
-        int h = get_bits(gb, 11);
-        int ret = ff_set_dimensions(v->s.avctx, w, h);
-        if (ret < 0) {
-            av_log(avctx, AV_LOG_ERROR, "Failed to set dimensions %d %d\n", w, h);
-            return ret;
-        }
-        skip_bits(gb, 5); //frame rate
-        v->res_x8 = get_bits1(gb);
-        if (get_bits1(gb)) { // something to do with DC VLC selection
-            av_log(avctx, AV_LOG_ERROR, "Unsupported sprite feature\n");
-            return -1;
-        }
-        skip_bits(gb, 3); //slice code
-        v->res_rtm_flag = 0;
-    } else {
-        v->res_rtm_flag = get_bits1(gb); //reserved
-    }
-    //TODO: figure out what they mean (always 0x402F)
-    if (!v->res_fasttx)
-        skip_bits(gb, 16);
-    av_log(avctx, AV_LOG_DEBUG,
-           "Profile %i:\nfrmrtq_postproc=%i, bitrtq_postproc=%i\n"
-           "LoopFilter=%i, MultiRes=%i, FastUVMC=%i, Extended MV=%i\n"
-           "Rangered=%i, VSTransform=%i, Overlap=%i, SyncMarker=%i\n"
-           "DQuant=%i, Quantizer mode=%i, Max B-frames=%i\n",
-           v->profile, v->frmrtq_postproc, v->bitrtq_postproc,
-           v->s.loop_filter, v->multires, v->fastuvmc, v->extended_mv,
-           v->rangered, v->vstransform, v->overlap, v->resync_marker,
-           v->dquant, v->quantizer_mode, avctx->max_b_frames);
-    return 0;
+    return ret;
 }
 
 static int decode_sequence_header_adv(VC1Context *v, GetBitContext *gb)
 {
-    v->res_rtm_flag = 1;
-    v->level = get_bits(gb, 3);
-    if (v->level >= 5) {
-        av_log(v->s.avctx, AV_LOG_ERROR, "Reserved LEVEL %i\n",v->level);
-    }
-    v->chromaformat = get_bits(gb, 2);
-    if (v->chromaformat != 1) {
+    AVCodecContext *avctx = v->avctx;
+    VC1AdvSeqCtx *seq = (VC1AdvSeqCtx*)v->seq;
+
+    v->level = seq->level = get_bits(gb, 3); // LEVEL
+    if (seq->level > 4)
+        av_log(avctx, AV_LOG_ERROR, "Reserved LEVEL %i\n", seq->level);
+
+    v->chromaformat = seq->colordiff_format = get_bits(gb, 2); // COLORDIFF_FORMAT
+    if (seq->colordiff_format != 1) {
         av_log(v->s.avctx, AV_LOG_ERROR,
-               "Only 4:2:0 chroma format supported\n");
-        return -1;
+               "Only 4:2:0 chroma format is supported\n");
+        return AVERROR_INVALIDDATA;
     }
 
-    // (fps-2)/4 (->30)
-    v->frmrtq_postproc       = get_bits(gb, 3); //common
-    // (bitrate-32kbps)/64kbps
-    v->bitrtq_postproc       = get_bits(gb, 5); //common
-    v->postprocflag          = get_bits1(gb);   //common
+    seq->frmrtq_postproc = get_bits(gb, 3); // FRMRTQ_POSTPROC
+    seq->bitrtq_postproc = get_bits(gb, 5); // BITRTQ_POSTPROC
+    v->postprocflag = seq->postprocflag = get_bits1(gb); // POSTPROCFLAG
+    v->max_coded_width = seq->max_coded_width = (get_bits(gb, 12) << 1) + 2; // MAX_CODED_WIDTH
+    v->max_coded_height = seq->max_coded_height = (get_bits(gb, 12) << 1) + 2; // MAX_CODED_HEIGHT
+    v->broadcast = seq->pulldown = get_bits1(gb); // PULLDOWN
+    v->interlace = seq->interlace = get_bits1(gb); // INTERLACE
+    v->tfcntrflag = seq->tfcntrflag = get_bits1(gb); // TFCNTRFLAG
+    v->finterpflag = seq->finterpflag = get_bits1(gb); // FINTERPFLAG
 
-    v->max_coded_width       = (get_bits(gb, 12) + 1) << 1;
-    v->max_coded_height      = (get_bits(gb, 12) + 1) << 1;
-    v->broadcast             = get_bits1(gb);
-    v->interlace             = get_bits1(gb);
-    v->tfcntrflag            = get_bits1(gb);
-    v->finterpflag           = get_bits1(gb);
-    skip_bits1(gb); // reserved
+    skip_bits1(gb); // RESERVED
 
-    av_log(v->s.avctx, AV_LOG_DEBUG,
-           "Advanced Profile level %i:\nfrmrtq_postproc=%i, bitrtq_postproc=%i\n"
-           "LoopFilter=%i, ChromaFormat=%i, Pulldown=%i, Interlace: %i\n"
-           "TFCTRflag=%i, FINTERPflag=%i\n",
-           v->level, v->frmrtq_postproc, v->bitrtq_postproc,
-           v->s.loop_filter, v->chromaformat, v->broadcast, v->interlace,
-           v->tfcntrflag, v->finterpflag);
-
-    v->psf = get_bits1(gb);
-    if (v->psf) { //PsF, 6.1.13
-        av_log(v->s.avctx, AV_LOG_ERROR, "Progressive Segmented Frame mode: not supported (yet)\n");
-        return -1;
+    v->psf = seq->psf = get_bits1(gb); // PSF
+    if (seq->psf) {
+        av_log(avctx, AV_LOG_ERROR,
+               "Progressive Segmented Frame mode is not supported\n");
+        return AVERROR_INVALIDDATA;
     }
-    v->s.max_b_frames = v->s.avctx->max_b_frames = 7;
-    if (get_bits1(gb)) { //Display Info - decoding is not affected by it
-        int w, h, ar = 0;
-        av_log(v->s.avctx, AV_LOG_DEBUG, "Display extended info:\n");
-        w = get_bits(gb, 14) + 1;
-        h = get_bits(gb, 14) + 1;
-        av_log(v->s.avctx, AV_LOG_DEBUG, "Display dimensions: %ix%i\n", w, h);
-        if (get_bits1(gb))
-            ar = get_bits(gb, 4);
-        if (ar && ar < 14) {
-            v->s.avctx->sample_aspect_ratio = ff_vc1_pixel_aspect[ar];
-        } else if (ar == 15) {
-            w = get_bits(gb, 8) + 1;
-            h = get_bits(gb, 8) + 1;
-            v->s.avctx->sample_aspect_ratio = (AVRational){w, h};
-        } else {
-            if (v->s.avctx->width  > v->max_coded_width ||
-                v->s.avctx->height > v->max_coded_height) {
-                avpriv_request_sample(v->s.avctx, "Huge resolution");
-            } else
-                av_reduce(&v->s.avctx->sample_aspect_ratio.num,
-                      &v->s.avctx->sample_aspect_ratio.den,
-                      v->s.avctx->height * w,
-                      v->s.avctx->width * h,
-                      1 << 30);
-        }
-        ff_set_sar(v->s.avctx, v->s.avctx->sample_aspect_ratio);
-        av_log(v->s.avctx, AV_LOG_DEBUG, "Aspect: %i:%i\n",
-               v->s.avctx->sample_aspect_ratio.num,
-               v->s.avctx->sample_aspect_ratio.den);
 
-        if (get_bits1(gb)) { //framerate stuff
-            if (get_bits1(gb)) {
-                v->s.avctx->framerate.den = 32;
-                v->s.avctx->framerate.num = get_bits(gb, 16) + 1;
+    if (get_bits1(gb)) { // DISPLAY_EXT
+        unsigned int aspect_horiz_size, aspect_vert_size;
+        unsigned int aspect_ratio;
+        unsigned int frameratenr, frameratedr;
+
+        seq->disp_horiz_size = get_bits(gb, 14) + 1; // DISP_HORIZ_SIZE
+        seq->disp_vert_size = get_bits(gb, 14) + 1; // DISP_VERT_SIZE
+
+        if (get_bits1(gb)) { // ASPECT_RATIO_FLAG
+            aspect_ratio = get_bits(gb, 4); // ASPECT_RATIO
+            if (aspect_ratio == 15) {
+                aspect_horiz_size = get_bits(gb, 8) + 1; // ASPECT_HORIZ_SIZE
+                aspect_vert_size = get_bits(gb, 8) + 1; // ASPECT_VERT_SIZE
+                seq->aspect_ratio =
+                    (AVRational){ .num = aspect_horiz_size, .den = aspect_vert_size};
+            } else if (aspect_ratio == 14) {
+                av_log(avctx, AV_LOG_WARNING, "Reserved ASPECT_RATIO\n");
             } else {
-                int nr, dr;
-                nr = get_bits(gb, 8);
-                dr = get_bits(gb, 4);
-                if (nr > 0 && nr < 8 && dr > 0 && dr < 3) {
-                    v->s.avctx->framerate.den = ff_vc1_fps_dr[dr - 1];
-                    v->s.avctx->framerate.num = ff_vc1_fps_nr[nr - 1] * 1000;
+                seq->aspect_ratio = ff_vc1_sample_aspect[aspect_ratio];
+            }
+        }
+
+        if (get_bits1(gb)) { // FRAMERATE_FLAG
+            if (get_bits1(gb)) { // FRAMERATEIND
+                avctx->framerate.num =
+                    seq->framerate.num = get_bits(gb, 16) + 1; // FRAMERATEEXP
+                avctx->framerate.den =
+                    seq->framerate.den = 32;
+            } else {
+                frameratenr = get_bits(gb, 8); // FRAMERATENR
+                frameratedr = get_bits(gb, 4); // FRAMERATEDR
+                if (frameratenr == 0) {
+                    av_log(avctx, AV_LOG_WARNING, "Forbidden FRAMERATENR\n");
+                } else if (frameratenr > 7) {
+                    av_log(avctx, AV_LOG_WARNING,
+                           "Reserved FRAMERATENR %i\n", frameratenr);
+                    frameratenr = 0;
+                }
+                if (frameratedr == 0) {
+                    av_log(avctx, AV_LOG_WARNING, "Forbidden FRAMERATEDR\n");
+                } else if (frameratedr > 2) {
+                    av_log(avctx, AV_LOG_WARNING,
+                           "Reserved FRAMERATEDR %i\n", frameratedr);
+                    frameratedr = 0;
+                }
+                if (frameratenr != 0 && frameratedr != 0) {
+                    avctx->framerate.num = seq->framerate.num =
+                        ff_vc1_fps_nr[frameratenr - 1] * 1000;
+                    avctx->framerate.den = seq->framerate.den =
+                        ff_vc1_fps_dr[frameratedr - 1];
                 }
             }
-            if (v->broadcast) { // Pulldown may be present
-                v->s.avctx->ticks_per_frame = 2;
+
+            // TODO: move to better place
+            // TODO: check correctness
+            if (seq->pulldown)
+                avctx->ticks_per_frame = 2;
+        } else {
+            // default values
+            seq->disp_horiz_size = seq->max_coded_width;
+            seq->disp_vert_size = seq->max_coded_height;
+        }
+
+        if (get_bits1(gb)) { // COLOR_FORMAT_FLAG
+            v->color_prim = seq->color_prim = get_bits(gb, 8); // COLOR_PRIM
+            if (seq->color_prim == 0) {
+                av_log(avctx, AV_LOG_WARNING, "Forbidden COLOR_PRIM\n");
+                seq->color_prim = 2;
+            } else if (seq->color_prim == 3 ||
+                       seq->color_prim == 4 ||
+                       seq->color_prim > 6) {
+                av_log(avctx, AV_LOG_WARNING,
+                       "Reserved COLOR_PRIM %i\n", seq->color_prim);
+                seq->color_prim = 2;
+            }
+
+            v->transfer_char = seq->transfer_char = get_bits(gb, 8); // TRANSFER_CHAR
+            if (seq->transfer_char == 0) {
+                av_log(avctx, AV_LOG_WARNING, "Forbidden TRANSFER_CHAR\n");
+                seq->transfer_char = 2;
+            } else if (seq->transfer_char == 3 ||
+                       seq->transfer_char == 7 ||
+                       seq->transfer_char > 8) {
+                av_log(avctx, AV_LOG_WARNING,
+                       "Reserved TRANSFER_CHAR %i\n", seq->transfer_char);
+                seq->transfer_char = 2;
+            }
+
+            v->matrix_coef = seq->matrix_coef = get_bits(gb, 8); // MATRIX_COEF
+            if (seq->matrix_coef == 0) {
+                av_log(avctx, AV_LOG_WARNING, "Forbidden MATRIX_COEF\n");
+                seq->matrix_coef = 2;
+            } else if (seq->matrix_coef != 1 &&
+                       seq->matrix_coef != 2 &&
+                       seq->matrix_coef != 6) {
+                av_log(avctx, AV_LOG_WARNING,
+                       "Reserved MATRIX_COEF %i\n", seq->matrix_coef);
+                seq->matrix_coef = 2;
             }
         }
-
-        if (get_bits1(gb)) {
-            v->color_prim    = get_bits(gb, 8);
-            v->transfer_char = get_bits(gb, 8);
-            v->matrix_coef   = get_bits(gb, 8);
-        }
     }
 
-    v->hrd_param_flag = get_bits1(gb);
-    if (v->hrd_param_flag) {
+    v->hrd_param_flag = seq->hrd_param_flag = get_bits1(gb); // HRD_PARAM_FLAG
+    if (seq->hrd_param_flag) {
         int i;
-        v->hrd_num_leaky_buckets = get_bits(gb, 5);
-        skip_bits(gb, 4); //bitrate exponent
-        skip_bits(gb, 4); //buffer size exponent
-        for (i = 0; i < v->hrd_num_leaky_buckets; i++) {
-            skip_bits(gb, 16); //hrd_rate[n]
-            skip_bits(gb, 16); //hrd_buffer[n]
+
+        v->hrd_num_leaky_buckets = seq->hrd_num_leaky_buckets =
+            get_bits(gb, 5); // HRD_NUM_LEAKY_BUCKETS
+        skip_bits(gb, 4); // BIT_RATE_EXPONENT
+        skip_bits(gb, 4); // BUFFER_SIZE_EXPONENT
+        for (i = 0; i < seq->hrd_num_leaky_buckets; i++) {
+            skip_bits(gb, 16); // HRD_RATE[n]
+            skip_bits(gb, 16); // HRD_BUFFER[n]
         }
     }
+
+    // TODO: move to better place
+    avctx->sample_aspect_ratio = seq->aspect_ratio;
+    v->s.max_b_frames = avctx->max_b_frames = 7;
+
+    av_log(avctx, AV_LOG_DEBUG,
+           "Advanced Profile Level %i:\n"
+           "frmrtq_postproc=%i, bitrtq_postproc=%i\n"
+           "ChromaFormat=%i, Pulldown=%i, Interlace=%i\n"
+           "TFCTRflag=%i, FINTERPflag=%i\n",
+           seq->level,
+           seq->frmrtq_postproc, seq->bitrtq_postproc,
+           seq->colordiff_format, seq->pulldown, seq->interlace,
+           seq->tfcntrflag, seq->finterpflag);
+
+    av_log(avctx, AV_LOG_DEBUG, "Display info:\n");
+    av_log(avctx, AV_LOG_DEBUG, "Display dimensions: %ix%i\n",
+           seq->disp_horiz_size, seq->disp_vert_size);
+    if (seq->aspect_ratio.num == 0)
+        av_log(avctx, AV_LOG_DEBUG, "Aspect ratio: (Unspecified)\n");
+    else
+        av_log(avctx, AV_LOG_DEBUG, "Aspect ratio: %i:%i\n",
+               seq->aspect_ratio.num, seq->aspect_ratio.den);
+    if (seq->framerate.num == 0)
+        av_log(avctx, AV_LOG_DEBUG, "Framerate: (Unspecified)\n");
+    else
+        av_log(avctx, AV_LOG_DEBUG, "Framerate: %i:%i\n",
+               seq->framerate.num, seq->framerate.den);
+    if (seq->color_prim == 2)
+        av_log(avctx, AV_LOG_DEBUG, "Color Primaries: (Unspecified)\n");
+    else
+        av_log(avctx, AV_LOG_DEBUG, "Color Primaries: %i\n",
+               seq->color_prim);
+    if (seq->transfer_char == 2)
+        av_log(avctx, AV_LOG_DEBUG,
+               "Transfer Characteristics: (Unspecified)\n");
+    else
+        av_log(avctx, AV_LOG_DEBUG, "Transfer Characteristics: %i\n",
+               seq->transfer_char);
+    if (seq->matrix_coef == 2)
+        av_log(avctx, AV_LOG_DEBUG,
+               "Matrix Coefficients: (Unspecified)\n");
+    else
+        av_log(avctx, AV_LOG_DEBUG, "Matrix Coefficients: %i\n",
+               seq->matrix_coef);
+
     return 0;
 }
 
@@ -625,6 +928,9 @@ static int read_bfraction(VC1Context *v, GetBitContext* gb) {
 
 int ff_vc1_parse_frame_header(VC1Context *v, GetBitContext* gb)
 {
+    VC1SeqCtx *seq = v->seq;
+    VC1SimpleSeqCtx *simple_seq = (VC1SimpleSeqCtx*)v->seq;
+    VC1MainSeqCtx *main_seq = (VC1MainSeqCtx*)v->seq;
     int pqindex, lowquant, status;
 
     v->field_mode = 0;
@@ -634,13 +940,15 @@ int ff_vc1_parse_frame_header(VC1Context *v, GetBitContext* gb)
     if (!v->s.avctx->codec)
         return -1;
     if (v->s.avctx->codec_id == AV_CODEC_ID_MSS2)
-        v->respic   =
-        v->rangered =
-        v->multires = get_bits(gb, 2) == 1;
+        v->respic =
+        main_seq->rangered =
+        main_seq->multires = get_bits(gb, 2) == 1;
     else
         skip_bits(gb, 2); //framecnt unused
     v->rangeredfrm = 0;
-    if (v->rangered)
+    if ((seq->profile == PROFILE_MAIN ||
+         seq->profile == PROFILE_COMPLEX) &&
+        main_seq->rangered)
         v->rangeredfrm = get_bits1(gb);
     if (get_bits1(gb)) {
         v->s.pict_type = AV_PICTURE_TYPE_P;
@@ -705,10 +1013,10 @@ int ff_vc1_parse_frame_header(VC1Context *v, GetBitContext* gb)
     v->k_y = v->mvrange + 8; //k_y can be 8 9 10 11
     v->range_x = 1 << (v->k_x - 1);
     v->range_y = 1 << (v->k_y - 1);
-    if (v->multires && v->s.pict_type != AV_PICTURE_TYPE_B)
+    if (simple_seq->multires && v->s.pict_type != AV_PICTURE_TYPE_B)
         v->respic = get_bits(gb, 2);
 
-    if (v->res_x8 && (v->s.pict_type == AV_PICTURE_TYPE_I || v->s.pict_type == AV_PICTURE_TYPE_BI)) {
+    if (simple_seq->res_x8 && (v->s.pict_type == AV_PICTURE_TYPE_I || v->s.pict_type == AV_PICTURE_TYPE_BI)) {
         v->x8_type = get_bits1(gb);
     } else
         v->x8_type = 0;

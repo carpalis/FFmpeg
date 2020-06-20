@@ -87,9 +87,13 @@ static int vdpau_vc1_start_frame(AVCodecContext *avctx,
     info->range_mapuv_flag  = v->range_mapuv_flag;
     info->range_mapuv       = v->range_mapuv;
     /* Specific to simple/main profile only */
-    info->multires          = v->multires;
+    info->multires          = v->seq->profile < PROFILE_ADVANCED &&
+                              ((VC1SimpleSeqCtx*)v->seq)->multires;
     info->syncmarker        = v->resync_marker;
-    info->rangered          = v->rangered | (v->rangeredfrm << 1);
+    info->rangered          = ((v->seq->profile == PROFILE_MAIN ||
+                                v->seq->profile == PROFILE_COMPLEX) &&
+                               ((VC1MainSeqCtx*)v->seq)->rangered) |
+                              (v->rangeredfrm << 1);
     info->maxbframes        = v->s.max_b_frames;
     info->deblockEnable     = v->postprocflag & 1;
     info->pquant            = v->pq;

@@ -422,9 +422,12 @@ av_cold void ff_vc1_init_transposed_scantables(VC1Context *v)
 static av_cold int vc1_decode_init(AVCodecContext *avctx)
 {
     VC1Context *v = avctx->priv_data;
+    VC1SeqCtx *seq;
     MpegEncContext *s = &v->s;
     GetBitContext gb;
     int ret;
+
+    v->avctx = avctx;
 
     /* save the container output size for WMImage */
     v->output_width  = avctx->width;
@@ -447,10 +450,13 @@ static av_cold int vc1_decode_init(AVCodecContext *avctx)
 
         init_get_bits(&gb, avctx->extradata, avctx->extradata_size*8);
 
-        if ((ret = ff_vc1_decode_sequence_header(avctx, v, &gb)) < 0)
+        if ((ret = ff_vc1_decode_sequence_header(v, &gb)) < 0)
           return ret;
+        v->seq->init(v);
 
-        if (avctx->codec_id == AV_CODEC_ID_WMV3IMAGE && !v->res_sprite) {
+        if (avctx->codec_id == AV_CODEC_ID_WMV3IMAGE &&
+            v->seq->profile < PROFILE_ADVANCED &&
+            !((VC1SimpleSeqCtx*)v->seq)->res_sprite) {
             avpriv_request_sample(avctx, "Non sprite WMV3IMAGE");
             return AVERROR_PATCHWELCOME;
         }
@@ -490,10 +496,11 @@ static av_cold int vc1_decode_init(AVCodecContext *avctx)
             init_get_bits(&gb, buf2, buf2_size * 8);
             switch (AV_RB32(start)) {
             case VC1_CODE_SEQHDR:
-                if ((ret = ff_vc1_decode_sequence_header(avctx, v, &gb)) < 0) {
+                if ((ret = ff_vc1_decode_sequence_header(v, &gb)) < 0) {
                     av_free(buf2);
                     return ret;
                 }
+                v->seq->init(v);
                 seq_initialized = 1;
                 break;
             case VC1_CODE_ENTRYPOINT:
@@ -510,11 +517,15 @@ static av_cold int vc1_decode_init(AVCodecContext *avctx)
             av_log(avctx, AV_LOG_ERROR, "Incomplete extradata\n");
             return AVERROR_INVALIDDATA;
         }
-        v->res_sprite = (avctx->codec_id == AV_CODEC_ID_VC1IMAGE);
+        if (v->seq->profile < PROFILE_ADVANCED)
+            ((VC1SimpleSeqCtx*)v->seq)->res_sprite =
+                (avctx->codec_id == AV_CODEC_ID_VC1IMAGE);
     }
 
-    avctx->profile = v->profile;
-    if (v->profile == PROFILE_ADVANCED)
+    seq = v->seq;
+
+    avctx->profile = seq->profile;
+    if (seq->profile == PROFILE_ADVANCED)
         avctx->level = v->level;
 
     if (!CONFIG_GRAY || !(avctx->flags & AV_CODEC_FLAG_GRAY))
@@ -525,15 +536,16 @@ static av_cold int vc1_decode_init(AVCodecContext *avctx)
             avctx->color_range = AVCOL_RANGE_MPEG;
     }
 
+    // TODO: check if this is still necessary
     // ensure static VLC tables are initialized
-    if ((ret = ff_msmpeg4_decode_init(avctx)) < 0)
-        return ret;
-    if ((ret = ff_vc1_decode_init_alloc_tables(v)) < 0)
-        return ret;
+//    if ((ret = ff_msmpeg4_decode_init(avctx)) < 0)
+//        return ret;
+//    if ((ret = ff_vc1_decode_init_alloc_tables(v)) < 0)
+//        return ret;
     // Hack to ensure the above functions will be called
     // again once we know all necessary settings.
     // That this is necessary might indicate a bug.
-    ff_vc1_decode_end(avctx);
+//    ff_vc1_decode_end(avctx);
 
     ff_blockdsp_init(&s->bdsp, avctx);
     ff_h264chroma_init(&v->h264chroma, 8);
@@ -557,7 +569,8 @@ static av_cold int vc1_decode_init(AVCodecContext *avctx)
     s->mb_width  = (avctx->coded_width  + 15) >> 4;
     s->mb_height = (avctx->coded_height + 15) >> 4;
 
-    if (v->profile == PROFILE_ADVANCED || v->res_fasttx) {
+    if (seq->profile == PROFILE_ADVANCED ||
+        ((VC1SimpleSeqCtx*)seq)->res_fasttx) {
         ff_vc1_init_transposed_scantables(v);
     } else {
         memcpy(v->zz_8x8, ff_wmv1_scantable, 4*64);
@@ -624,6 +637,9 @@ av_cold int ff_vc1_decode_end(AVCodecContext *avctx)
     av_freep(&v->is_intra_base); // FIXME use v->mb_type[]
     av_freep(&v->luma_mv_base);
     ff_intrax8_common_end(&v->x8);
+
+    av_freep(&v->seq);
+
     return 0;
 }
 
@@ -787,7 +803,8 @@ static int vc1_decode_frame(AVCodecContext *avctx, void *data,
     } else
         init_get_bits(&s->gb, buf, buf_size*8);
 
-    if (v->res_sprite) {
+    if (v->seq->profile < PROFILE_ADVANCED &&
+        ((VC1SimpleSeqCtx*)v->seq)->res_sprite) {
         v->new_sprite  = !get_bits1(&s->gb);
         v->two_sprites =  get_bits1(&s->gb);
         /* res_sprite means a Windows Media Image stream, AV_CODEC_ID_*IMAGE means
@@ -819,9 +836,11 @@ static int vc1_decode_frame(AVCodecContext *avctx, void *data,
             goto err;
         }
 
-        s->low_delay = !avctx->has_b_frames || v->res_sprite;
+        s->low_delay = !avctx->has_b_frames ||
+                       (v->seq->profile < PROFILE_ADVANCED &&
+                        ((VC1SimpleSeqCtx*)v->seq)->res_sprite);
 
-        if (v->profile == PROFILE_ADVANCED) {
+        if (v->seq->profile == PROFILE_ADVANCED) {
             if(avctx->coded_width<=1 || avctx->coded_height<=1) {
                 ret = AVERROR_INVALIDDATA;
                 goto err;
@@ -834,7 +853,7 @@ static int vc1_decode_frame(AVCodecContext *avctx, void *data,
     // do parse frame header
     v->pic_header_flag = 0;
     v->first_pic_header_flag = 1;
-    if (v->profile < PROFILE_ADVANCED) {
+    if (v->seq->profile < PROFILE_ADVANCED) {
         if ((ret = ff_vc1_parse_frame_header(v, &s->gb)) < 0) {
             goto err;
         }

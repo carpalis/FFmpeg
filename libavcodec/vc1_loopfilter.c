@@ -104,6 +104,7 @@ static av_always_inline void vc1_v_overlap_filter(VC1Context *v, int16_t (*top_b
 
 void ff_vc1_i_overlap_filter(VC1Context *v)
 {
+    VC1SeqCtx *seq = v->seq;
     MpegEncContext *s = &v->s;
     int16_t (*topleft_blk)[64], (*top_blk)[64], (*left_blk)[64], (*cur_blk)[64];
     int block_count = CONFIG_GRAY && (s->avctx->flags & AV_CODEC_FLAG_GRAY) ? 4 : 6;
@@ -127,7 +128,7 @@ void ff_vc1_i_overlap_filter(VC1Context *v)
         if (s->mb_x == 0 && (i & 5) != 1)
             continue;
 
-        if (v->pq >= 9 || (v->profile == PROFILE_ADVANCED &&
+        if (v->pq >= 9 || (seq->profile == PROFILE_ADVANCED &&
                            (v->condover == CONDOVER_ALL ||
                             (v->over_flags_plane[mb_pos] &&
                              ((i & 5) == 1 || v->over_flags_plane[mb_pos - 1])))))
@@ -144,13 +145,13 @@ void ff_vc1_i_overlap_filter(VC1Context *v)
                 continue;
 
             if (s->mb_x &&
-                (v->pq >= 9 || (v->profile == PROFILE_ADVANCED &&
+                (v->pq >= 9 || (seq->profile == PROFILE_ADVANCED &&
                                 (v->condover == CONDOVER_ALL ||
                                  (v->over_flags_plane[mb_pos - 1] &&
                                   ((i & 2) || v->over_flags_plane[mb_pos - 1 - s->mb_stride]))))))
                 vc1_v_overlap_filter(v, s->first_slice_line ? left_blk : topleft_blk, left_blk, i);
             if (s->mb_x == s->mb_width - 1 &&
-                (v->pq >= 9 || (v->profile == PROFILE_ADVANCED &&
+                (v->pq >= 9 || (seq->profile == PROFILE_ADVANCED &&
                                 (v->condover == CONDOVER_ALL ||
                                  (v->over_flags_plane[mb_pos] &&
                                   ((i & 2) || v->over_flags_plane[mb_pos - s->mb_stride]))))))

@@ -751,23 +751,24 @@ static av_cold int wmv9_init(AVCodecContext *avctx)
 
     v->s.avctx    = avctx;
 
+    if ((ret = ff_vc1_new_sequence_context(PROFILE_MAIN, &v->seq)) < 0)
+        return ret;
+
     if ((ret = ff_vc1_init_common(v)) < 0)
         return ret;
     ff_vc1dsp_init(&v->vc1dsp);
 
-    v->profile = PROFILE_MAIN;
-
     v->zz_8x4     = ff_wmv2_scantableA;
     v->zz_4x8     = ff_wmv2_scantableB;
-    v->res_y411   = 0;
-    v->res_sprite = 0;
+    ((VC1MainSeqCtx*)v->seq)->res_y411   = 0;
+    ((VC1MainSeqCtx*)v->seq)->res_sprite = 0;
 
-    v->frmrtq_postproc = 7;
-    v->bitrtq_postproc = 31;
+    ((VC1MainSeqCtx*)v->seq)->frmrtq_postproc = 7;
+    ((VC1MainSeqCtx*)v->seq)->bitrtq_postproc = 31;
 
-    v->res_x8          = 0;
-    v->multires        = 0;
-    v->res_fasttx      = 1;
+    ((VC1MainSeqCtx*)v->seq)->res_x8          = 0;
+    ((VC1MainSeqCtx*)v->seq)->multires        = 0;
+    ((VC1MainSeqCtx*)v->seq)->res_fasttx      = 1;
 
     v->fastuvmc        = 0;
 
@@ -776,19 +777,19 @@ static av_cold int wmv9_init(AVCodecContext *avctx)
     v->dquant          = 1;
     v->vstransform     = 1;
 
-    v->res_transtab    = 0;
+    ((VC1MainSeqCtx*)v->seq)->res_transtab    = 0;
 
     v->overlap         = 0;
 
     v->resync_marker   = 0;
-    v->rangered        = 0;
+    ((VC1MainSeqCtx*)v->seq)->rangered        = 0;
 
     v->s.max_b_frames = avctx->max_b_frames = 0;
     v->quantizer_mode = 0;
 
     v->finterpflag = 0;
 
-    v->res_rtm_flag = 1;
+    ((VC1MainSeqCtx*)v->seq)->res_rtm_flag = 1;
 
     ff_vc1_init_transposed_scantables(v);
 

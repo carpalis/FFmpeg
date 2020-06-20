@@ -276,7 +276,8 @@ void ff_vc1_pred_mv(VC1Context *v, int n, int dmv_x, int dmv_y,
         //in 4-MV mode different blocks have different B predictor position
         switch (n) {
         case 0:
-            if (v->res_rtm_flag)
+            if (v->seq->profile == PROFILE_ADVANCED ||
+                ((VC1SimpleSeqCtx*)v->seq)->res_rtm_flag)
                 off = s->mb_x ? -1 : 1;
             else
                 off = s->mb_x ? -1 : 2 * s->mb_width - wrap - 1;
@@ -691,6 +692,7 @@ void ff_vc1_pred_mv_intfr(VC1Context *v, int n, int dmv_x, int dmv_y,
 void ff_vc1_pred_b_mv(VC1Context *v, int dmv_x[2], int dmv_y[2],
                       int direct, int mvtype)
 {
+    VC1SeqCtx *seq = v->seq;
     MpegEncContext *s = &v->s;
     int xy, wrap, off = 0;
     int16_t *A, *B, *C;
@@ -766,7 +768,7 @@ void ff_vc1_pred_b_mv(VC1Context *v, int dmv_x[2], int dmv_y[2],
         /* Pullback MV as specified in 8.3.5.3.4 */
         {
             int qx, qy, X, Y;
-            int sh = v->profile < PROFILE_ADVANCED ? 5 : 6;
+            int sh = seq->profile < PROFILE_ADVANCED ? 5 : 6;
             int MV = 4 - (1 << sh);
             qx = (s->mb_x << sh);
             qy = (s->mb_y << sh);
@@ -836,7 +838,7 @@ void ff_vc1_pred_b_mv(VC1Context *v, int dmv_x[2], int dmv_y[2],
         /* Pullback MV as specified in 8.3.5.3.4 */
         {
             int qx, qy, X, Y;
-            int sh = v->profile < PROFILE_ADVANCED ? 5 : 6;
+            int sh = seq->profile < PROFILE_ADVANCED ? 5 : 6;
             int MV = 4 - (1 << sh);
             qx = (s->mb_x << sh);
             qy = (s->mb_y << sh);

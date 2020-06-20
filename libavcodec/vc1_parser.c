@@ -66,17 +66,18 @@ static void vc1_extract_header(AVCodecParserContext *s, AVCodecContext *avctx,
     GetBitContext gb;
     int ret;
     vpc->v.s.avctx = avctx;
+    vpc->v.avctx = avctx;
     vpc->v.parse_only = 1;
     init_get_bits8(&gb, buf, buf_size);
     switch (vpc->prev_start_code) {
     case VC1_CODE_SEQHDR & 0xFF:
-        ff_vc1_decode_sequence_header(avctx, &vpc->v, &gb);
+        ff_vc1_decode_sequence_header(&vpc->v, &gb);
         break;
     case VC1_CODE_ENTRYPOINT & 0xFF:
         ff_vc1_decode_entry_point(avctx, &vpc->v, &gb);
         break;
     case VC1_CODE_FRAME & 0xFF:
-        if(vpc->v.profile < PROFILE_ADVANCED)
+        if(vpc->v.seq->profile < PROFILE_ADVANCED)
             ret = ff_vc1_parse_frame_header    (&vpc->v, &gb);
         else
             ret = ff_vc1_parse_frame_header_adv(&vpc->v, &gb);
@@ -286,11 +287,20 @@ static av_cold int vc1_parse_init(AVCodecParserContext *s)
     return ff_vc1_init_common(&vpc->v);
 }
 
+static void vc1_parse_close(AVCodecParserContext *s)
+{
+    ParseContext *pc = s->priv_data;
+    VC1ParseContext *vpc = s->priv_data;
+
+    av_freep(&vpc->v.seq);
+    av_freep(&pc->buffer);
+}
+
 AVCodecParser ff_vc1_parser = {
     .codec_ids      = { AV_CODEC_ID_VC1 },
     .priv_data_size = sizeof(VC1ParseContext),
     .parser_init    = vc1_parse_init,
     .parser_parse   = vc1_parse,
-    .parser_close   = ff_parse_close,
+    .parser_close   = vc1_parse_close,
     .split          = vc1_split,
 };
