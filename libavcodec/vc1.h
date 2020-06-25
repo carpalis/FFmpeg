@@ -32,6 +32,38 @@
 
 #define AC_VLC_BITS 9
 
+//enum PredictorBlock {
+//    PRED_A,
+//    PRED_B,
+//    PRED_C
+//};
+
+//enum MBIndex {
+//    MB_CURRENT,
+//    MB_TOP,
+//    MB_LEFT_TOP,
+//    MB_LEFT,
+//};
+
+enum BlockIndex {
+    BLOCK_Y0,
+    BLOCK_Y1,
+    BLOCK_Y2,
+    BLOCK_Y3,
+    BLOCK_CB,
+    BLOCK_CR
+};
+
+enum PredictionDirection {
+    PRED_DIR_TOP,
+    PRED_DIR_LEFT
+};
+
+//enum PictureComponent {
+//    COMPONENT_LUMA,
+//    COMPONENT_CHROMA
+//};
+
 /** Sequence quantizer mode */
 //@{
 enum QuantMode {
@@ -241,6 +273,30 @@ typedef struct VC1AdvSeqCtx {
     uint8_t hrd_num_leaky_buckets;
 } VC1AdvSeqCtx;
 
+typedef struct VC1SliceCtx {
+    uint8_t first_line;
+} VC1SliceCtx;
+
+typedef struct VC1StoredBlkCtx {
+    int16_t dc_pred;
+    uint8_t avail;
+//    int16_t ac_pred_top[7];
+//    int16_t ac_pred_left[7];
+} VC1StoredBlkCtx;
+
+typedef struct VC1StoredMBCtx {
+} VC1StoredMBCtx;
+
+typedef struct VC1MBCtx VC1MBCtx;
+
+typedef struct VC1BlkCtx {
+} VC1BlkCtx;
+
+struct VC1MBCtx {
+    uint16_t mb_x;
+    uint8_t dc_step_size;
+};
+
 /** The VC1 Context
  * @todo Change size wherever another size is more efficient
  * Many members are only used for Advanced Profile
@@ -254,6 +310,13 @@ struct VC1Context{
     AVCodecContext *avctx;
 
     VC1SeqCtx *seq;
+
+    VC1SliceCtx slicectx;
+
+    VC1MBCtx mbctx;
+
+    VC1StoredBlkCtx *s_blkctx_base, *s_blkctx[2];
+    int16_t c_blkidx_start;
 
     /** Simple/Main Profile sequence header */
     //@{

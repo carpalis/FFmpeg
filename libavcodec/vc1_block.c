@@ -413,7 +413,7 @@ static inline int ff_vc1_pred_dc(MpegEncContext *s, int overlap, int pq, int n,
 
     /* scale predictors if needed */
     q1 = FFABS(s->current_picture.qscale_table[mb_pos]);
-    dqscale_index = s->y_dc_scale_table[q1] - 1;
+    dqscale_index = s->y_dc_scale_table[q1];
     if (dqscale_index < 0)
         return 0;
 
@@ -461,6 +461,55 @@ static inline int ff_vc1_pred_dc(MpegEncContext *s, int overlap, int pq, int n,
 
     /* update predictor */
     *dc_val_ptr = &dc_val[0];
+    return pred;
+}
+
+static inline int vc1_pred_dc_simple(VC1MBCtx *mbctx,
+                                     VC1StoredBlkCtx *curr_blkctx,
+                                     VC1StoredBlkCtx *top_blkctx,
+                                     int *dir_ptr)
+{
+    VC1StoredBlkCtx *pred_a_blkctx;
+    VC1StoredBlkCtx *pred_b_blkctx;
+    VC1StoredBlkCtx *pred_c_blkctx;
+    int a_avail, c_avail;
+    int a, b, c;
+    int pred;
+
+    /* B A
+     * C X
+     */
+
+    pred_a_blkctx = top_blkctx;
+    pred_b_blkctx = top_blkctx - 2;
+    pred_c_blkctx = curr_blkctx - 2;
+
+    a_avail = pred_a_blkctx->avail;
+    c_avail = pred_c_blkctx->avail;
+
+    a = pred_a_blkctx->dc_pred;
+    b = pred_b_blkctx->dc_pred;
+    c = pred_c_blkctx->dc_pred;
+
+    a = (a * ff_vc1_dqscale[mbctx->dc_step_size] + 0x20000) >> 18;
+    b = (b * ff_vc1_dqscale[mbctx->dc_step_size] + 0x20000) >> 18;
+    c = (c * ff_vc1_dqscale[mbctx->dc_step_size] + 0x20000) >> 18;
+
+    /* if (c_avail && (FFABS(b - a) <= FFABS(b - c) || !a_avail)) {
+     *   *dir_ptr = PRED_DIR_LEFT;
+     *   pred = c;
+     * } else if (a_avail) {
+     *   *dir_ptr = PRED_DIR_TOP;
+     *   pred = a;
+     * } else {
+     *   *dir_ptr = PRED_DIR_LEFT;
+     *   pred = 0;
+     * }
+     */
+
+    *dir_ptr = !a_avail | c_avail & FFABS(b - a) <= FFABS(b - c);
+    pred = c * c_avail * *dir_ptr + a * (1 - *dir_ptr);
+
     return pred;
 }
 
@@ -578,6 +627,8 @@ static int vc1_decode_ac_coeff(VC1Context *v, int *last, int *skip,
 static int vc1_decode_i_block(VC1Context *v, int16_t block[64], int n,
                               int coded, int codingset)
 {
+    static const uint8_t blk_offset[6] = { 0, 2, 1, 3, 0, 1 };
+
     GetBitContext *gb = &v->s.gb;
     MpegEncContext *s = &v->s;
     int dc_pred_dir = 0; /* Direction of the DC prediction used */
@@ -585,6 +636,43 @@ static int vc1_decode_i_block(VC1Context *v, int16_t block[64], int n,
     int16_t *dc_val;
     int16_t *ac_val, *ac_val2;
     int dcdiff, scale;
+    int dcdiff_old;
+    VC1StoredBlkCtx *curr_blkctx, *top_blkctx;
+    int curr_blkidx, top_blkidx;
+    int is_chroma, is_bottom_luma;
+
+    /* if (n < BLOCK_CB) {
+     *     curr_blkidx = v->mbctx.mb_x * 4 + blk_offset[n];
+     *     top_blkidx = curr_blkidx ^ 1;
+     * } else {
+     *     curr_blkidx = v->c_blkidx_start + v->mbctx.mb_x * 2 + blk_offset[n];
+     *     top_blkidx = curr_blkidx;
+     * }
+     *
+     * curr_blkctx = v->s_blkctx[(s->mb_y + 1) % 2];
+     * if (n == BLOCK_Y2 || n == BLOCK_Y3) {
+     *     top_blkctx = curr_blkctx;
+     * } else {
+     *     if (v->slicectx.first_line)
+     *         top_blkidx = -1;
+     *     top_blkctx = v->s_blkctx[s->mb_y % 2];
+     * }
+     */
+
+    is_bottom_luma = !!(n & 2);
+    is_chroma = n > 3;
+
+    curr_blkctx = v->s_blkctx[s->mb_y & 1];
+    top_blkctx = v->s_blkctx[s->mb_y & 1 ^ !is_bottom_luma] - 1;
+
+    curr_blkidx = blk_offset[n] + v->mbctx.mb_x * 4;
+    // if (is_chroma)
+    curr_blkidx += (v->c_blkidx_start - v->mbctx.mb_x * 2) * is_chroma;
+    // if (!v->slicectx.first_line || is_bottom_luma)
+    top_blkidx = ((curr_blkidx ^ !is_chroma) + 1) * (!v->slicectx.first_line | is_bottom_luma);
+
+    curr_blkctx += curr_blkidx;
+    top_blkctx += top_blkidx;
 
     /* Get DC differential */
     if (n < 4) {
@@ -609,8 +697,15 @@ static int vc1_decode_i_block(VC1Context *v, int16_t block[64], int n,
     }
 
     /* Prediction */
-    dcdiff += vc1_i_pred_dc(&v->s, v->overlap, v->pq, n, &dc_val, &dc_pred_dir);
+    dcdiff_old = vc1_i_pred_dc(&v->s, v->overlap, v->pq, n, &dc_val, &dc_pred_dir);
+    dcdiff += vc1_pred_dc_simple(&v->mbctx, curr_blkctx, top_blkctx, &dc_pred_dir);
+
+    av_assert0(dcdiff_old == vc1_pred_dc_simple(&v->mbctx, curr_blkctx, top_blkctx, &dc_pred_dir));
+
     *dc_val = dcdiff;
+    curr_blkctx->dc_pred =
+        av_clip_c(*dc_val * v->mbctx.dc_step_size, -2048, 2047);
+    curr_blkctx->avail = 1;
 
     /* Store the quantized DC coeff, used for prediction */
     if (n < 4)
@@ -846,7 +941,7 @@ static int vc1_decode_i_block_adv(VC1Context *v, int16_t block[64], int n,
                 q2 = FFABS(q2) * 2 + ((q2 < 0) ? 0 : v->halfpq) - 1;
             if (q2 && q1 != q2) {
                 for (k = 1; k < 8; k++)
-                    block[k << sh] += (int)(ac_val[k] * (unsigned)q2 * ff_vc1_dqscale[q1 - 1] + 0x20000) >> 18;
+                    block[k << sh] += (int)(ac_val[k] * (unsigned)q2 * ff_vc1_dqscale[q1] + 0x20000) >> 18;
             } else {
                 for (k = 1; k < 8; k++)
                     block[k << sh] += ac_val[k];
@@ -889,7 +984,7 @@ static int vc1_decode_i_block_adv(VC1Context *v, int16_t block[64], int n,
                 q2 = FFABS(q2) * 2 + ((q2 < 0) ? 0 : v->halfpq) - 1;
             if (q2 && q1 != q2) {
                 for (k = 1; k < 8; k++)
-                    ac_val2[k] = (int)(ac_val2[k] * q2 * (unsigned)ff_vc1_dqscale[q1 - 1] + 0x20000) >> 18;
+                    ac_val2[k] = (int)(ac_val2[k] * q2 * (unsigned)ff_vc1_dqscale[q1] + 0x20000) >> 18;
             }
             for (k = 1; k < 8; k++) {
                 block[k << sh] = ac_val2[k] * scale;
@@ -928,6 +1023,7 @@ static int vc1_decode_intra_block(VC1Context *v, int16_t block[64], int n,
     int scale;
     int q1, q2 = 0;
     int quant = FFABS(mquant);
+    int dcdiff_old;
 
     s->bdsp.clear_block(block);
 
@@ -961,7 +1057,11 @@ static int vc1_decode_intra_block(VC1Context *v, int16_t block[64], int n,
     }
 
     /* Prediction */
-    dcdiff += ff_vc1_pred_dc(&v->s, v->overlap, quant, n, a_avail, c_avail, &dc_val, &dc_pred_dir);
+    dcdiff_old = ff_vc1_pred_dc(&v->s, v->overlap, quant, n, a_avail, c_avail, &dc_val, &dc_pred_dir);
+//    dcdiff_new = vc1_pred_dc_simple(&v->mbctx, n, &dc_pred_dir_new);
+//    av_assert0(dcdiff_old == dcdiff_new);
+//    av_assert0(dc_pred_dir == dc_pred_dir_new);
+    dcdiff += dcdiff_old;
     *dc_val = dcdiff;
 
     /* Store the quantized DC coeff, used for prediction */
@@ -1036,10 +1136,10 @@ static int vc1_decode_intra_block(VC1Context *v, int16_t block[64], int n,
             if (q2 && q1 != q2) {
                 if (dc_pred_dir) { // left
                     for (k = 1; k < 8; k++)
-                        block[k << v->left_blk_sh] += (int)(ac_val[k] * q2 * (unsigned)ff_vc1_dqscale[q1 - 1] + 0x20000) >> 18;
+                        block[k << v->left_blk_sh] += (int)(ac_val[k] * q2 * (unsigned)ff_vc1_dqscale[q1] + 0x20000) >> 18;
                 } else { //top
                     for (k = 1; k < 8; k++)
-                        block[k << v->top_blk_sh] += (int)(ac_val[k + 8] * q2 * (unsigned)ff_vc1_dqscale[q1 - 1] + 0x20000) >> 18;
+                        block[k << v->top_blk_sh] += (int)(ac_val[k + 8] * q2 * (unsigned)ff_vc1_dqscale[q1] + 0x20000) >> 18;
                 }
             } else {
                 if (dc_pred_dir) { // left
@@ -1080,7 +1180,7 @@ static int vc1_decode_intra_block(VC1Context *v, int16_t block[64], int n,
                     q2 = FFABS(q2) * 2 + ((q2 < 0) ? 0 : v->halfpq) - 1;
                 if (q2 && q1 != q2) {
                     for (k = 1; k < 8; k++)
-                        ac_val2[k] = (ac_val2[k] * q2 * ff_vc1_dqscale[q1 - 1] + 0x20000) >> 18;
+                        ac_val2[k] = (ac_val2[k] * q2 * ff_vc1_dqscale[q1] + 0x20000) >> 18;
                 }
             }
         } else { // top
@@ -1093,7 +1193,7 @@ static int vc1_decode_intra_block(VC1Context *v, int16_t block[64], int n,
                     q2 = FFABS(q2) * 2 + ((q2 < 0) ? 0 : v->halfpq) - 1;
                 if (q2 && q1 != q2) {
                     for (k = 1; k < 8; k++)
-                        ac_val2[k + 8] = (ac_val2[k + 8] * q2 * ff_vc1_dqscale[q1 - 1] + 0x20000) >> 18;
+                        ac_val2[k + 8] = (ac_val2[k + 8] * q2 * ff_vc1_dqscale[q1] + 0x20000) >> 18;
                 }
             }
         }
@@ -2543,6 +2643,7 @@ static void vc1_decode_i_blocks(VC1Context *v)
     int cbp, val;
     uint8_t *coded_val;
     int mb_pos;
+    int default_predictor;
 
     /* select coding mode used for VLC tables selection */
     switch (v->y_ac_table_index) {
@@ -2573,13 +2674,37 @@ static void vc1_decode_i_blocks(VC1Context *v)
     s->y_dc_scale = s->y_dc_scale_table[v->pq];
     s->c_dc_scale = s->c_dc_scale_table[v->pq];
 
+    v->mbctx.dc_step_size = s->y_dc_scale_table[v->pq];
+
+    // TODO: move to picture header decoder
+    if (v->overlap && v->pq >= 9)
+        default_predictor = 0;
+    else
+        default_predictor = 1024;
+
+    (v->s_blkctx[1])[v->c_blkidx_start - 1] =
+    (v->s_blkctx[1])[v->c_blkidx_start - 2] =
+    (v->s_blkctx[1])[-1] =
+    (v->s_blkctx[1])[-2] =
+    (v->s_blkctx[1])[-3] =
+    (v->s_blkctx[1])[-4] =
+    (v->s_blkctx[0])[v->c_blkidx_start - 1] =
+    (v->s_blkctx[0])[v->c_blkidx_start - 2] =
+    (v->s_blkctx[0])[-1] =
+    (v->s_blkctx[0])[-2] =
+    (v->s_blkctx[0])[-3] =
+    (v->s_blkctx[0])[-4] =
+        (VC1StoredBlkCtx){ .dc_pred = default_predictor, .avail = 1 };
+
     //do frame decode
     s->mb_x = s->mb_y = 0;
     s->mb_intra         = 1;
-    s->first_slice_line = 1;
+    s->first_slice_line = v->slicectx.first_line = 1;
     for (s->mb_y = s->start_mb_y; s->mb_y < s->end_mb_y; s->mb_y++) {
         s->mb_x = 0;
         init_block_index(v);
+
+        v->mbctx.mb_x = 0;
         for (; s->mb_x < v->end_mb_x; s->mb_x++) {
             ff_update_block_index(s);
             s->bdsp.clear_blocks(v->block[v->cur_blk_idx][0]);
@@ -2643,13 +2768,15 @@ static void vc1_decode_i_blocks(VC1Context *v)
             v->top_blk_idx = (v->top_blk_idx + 1) % (v->end_mb_x + 2);
             v->left_blk_idx = (v->left_blk_idx + 1) % (v->end_mb_x + 2);
             v->cur_blk_idx = (v->cur_blk_idx + 1) % (v->end_mb_x + 2);
+
+            v->mbctx.mb_x++;
         }
         if (!v->s.loop_filter)
             ff_mpeg_draw_horiz_band(s, s->mb_y * 16, 16);
         else if (s->mb_y)
             ff_mpeg_draw_horiz_band(s, (s->mb_y - 1) * 16, 16);
 
-        s->first_slice_line = 0;
+        s->first_slice_line = v->slicectx.first_line = 0;
     }
     if (v->s.loop_filter)
         ff_mpeg_draw_horiz_band(s, (s->end_mb_y - 1) * 16, 16);

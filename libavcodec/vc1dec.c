@@ -321,11 +321,31 @@ static void vc1_sprite_flush(AVCodecContext *avctx)
 
 #endif
 
+static av_cold int vc1_init_blk_context(VC1Context *v)
+{
+    MpegEncContext *s = &v->s;
+
+    // TODO: size array to MAX_CODED_WIDTH
+    v->s_blkctx_base = av_malloc(sizeof(VC1StoredBlkCtx) * (s->mb_width + 1) * 12);
+    if (!v->s_blkctx_base)
+        return AVERROR(ENOMEM);
+
+    v->s_blkctx[0] = v->s_blkctx_base + 4;
+    v->s_blkctx[1] = v->s_blkctx_base + (s->mb_width + 1) * 6 + 4;
+    v->c_blkidx_start = s->mb_width * 4 + 2;
+
+    return 0;
+}
+
 av_cold int ff_vc1_decode_init_alloc_tables(VC1Context *v)
 {
     MpegEncContext *s = &v->s;
     int i, ret = AVERROR(ENOMEM);
     int mb_height = FFALIGN(s->mb_height, 2);
+
+    ret = vc1_init_blk_context(v);
+    if (ret < 0)
+        return ret;
 
     /* Allocate mb bitplanes */
     v->mv_type_mb_plane = av_malloc (s->mb_stride * mb_height);
@@ -639,6 +659,7 @@ av_cold int ff_vc1_decode_end(AVCodecContext *avctx)
     ff_intrax8_common_end(&v->x8);
 
     av_freep(&v->seq);
+    av_freep(&v->s_blkctx_base);
 
     return 0;
 }

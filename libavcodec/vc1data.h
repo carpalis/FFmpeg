@@ -194,7 +194,7 @@ extern const uint8_t ff_vc1_intra_horz_8x8_zz [64];
 extern const uint8_t ff_vc1_intra_vert_8x8_zz [64];
 
 /* DQScale as specified in 8.1.3.9 - almost identical to 0x40000/i */
-extern const int32_t ff_vc1_dqscale[63];
+extern const int32_t ff_vc1_dqscale[64];
 
 /* P Interlaced field picture MV predictor scaling values (Table 114) */
 extern const uint16_t ff_vc1_field_mvpred_scales[2][7][4];
