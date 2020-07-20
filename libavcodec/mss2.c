@@ -392,10 +392,11 @@ static int decode_wmv9(AVCodecContext *avctx, const uint8_t *buf, int buf_size,
 
     s->loop_filter = avctx->skip_loop_filter < AVDISCARD_ALL;
 
-    if (ff_vc1_parse_frame_header(v, &s->gb) < 0) {
+    if (ff_vc1_decode_picture_header(v, &s->gb) < 0) {
         av_log(v->s.avctx, AV_LOG_ERROR, "header error\n");
         return AVERROR_INVALIDDATA;
     }
+//    v->pict->init(v);
 
     if (s->pict_type != AV_PICTURE_TYPE_I) {
         av_log(v->s.avctx, AV_LOG_ERROR, "expected I-frame\n");
@@ -751,8 +752,10 @@ static av_cold int wmv9_init(AVCodecContext *avctx)
 
     v->s.avctx    = avctx;
 
-    if ((ret = ff_vc1_new_sequence_context(PROFILE_MAIN, &v->seq)) < 0)
+    v->avctx = avctx;
+    if ((ret = ff_vc1_new_sequence_context(v, PROFILE_MAIN)) < 0)
         return ret;
+    v->seq->init(v);
 
     if ((ret = ff_vc1_init_common(v)) < 0)
         return ret;

@@ -389,7 +389,6 @@ static inline int vc1_i_pred_dc(MpegEncContext *s, int overlap, int pq, int n,
     return pred;
 }
 
-
 /** Get predicted DC value
  * prediction dir: left=0, top=1
  * @param s MpegEncContext
@@ -464,53 +463,84 @@ static inline int ff_vc1_pred_dc(MpegEncContext *s, int overlap, int pq, int n,
     return pred;
 }
 
-static inline int vc1_pred_dc_simple(VC1MBCtx *mbctx,
-                                     VC1StoredBlkCtx *curr_blkctx,
-                                     VC1StoredBlkCtx *top_blkctx,
-                                     int *dir_ptr)
+static inline void vc1_decode_intra_dc(VC1IntraBlkCtx *blkctx,
+                                       GetBitContext *gb)
 {
-    VC1StoredBlkCtx *pred_a_blkctx;
-    VC1StoredBlkCtx *pred_b_blkctx;
-    VC1StoredBlkCtx *pred_c_blkctx;
-    int a_avail, c_avail;
-    int a, b, c;
-    int pred;
+    VC1StoredBlkCtx *curr_blkctx = blkctx->curr_blkctx;
+    VC1StoredBlkCtx *pred_a_blkctx = blkctx->top_blkctx;
+    VC1StoredBlkCtx *pred_b_blkctx = pred_a_blkctx - 2;
+    VC1StoredBlkCtx *pred_c_blkctx = curr_blkctx - 2;
+    int16_t *block = *blkctx->block;
+    int mquant = blkctx->mquant;
+    int dc_step_size = ff_vc1_dc_scale_table[mquant];
+    int dqscale = ff_vc1_dqscale[dc_step_size];
+    unsigned int a_avail = pred_a_blkctx->avail;
+    unsigned int b_avail = pred_b_blkctx->avail;
+    unsigned int c_avail = pred_c_blkctx->avail;
+    unsigned int pred_dir;
+    int dc_diff, a, b, c;
 
     /* B A
      * C X
      */
 
-    pred_a_blkctx = top_blkctx;
-    pred_b_blkctx = top_blkctx - 2;
-    pred_c_blkctx = curr_blkctx - 2;
+    /* Predict Coded Block Pattern */
+    a = pred_a_blkctx->coded;
+    b = pred_b_blkctx->coded;
+    c = pred_c_blkctx->coded;
 
-    a_avail = pred_a_blkctx->avail;
-    c_avail = pred_c_blkctx->avail;
+    blkctx->cbpcy = !!blkctx->cbpcy ^ (c & !(b ^ a) | a & (b ^ a)) & blkctx->use_cbpcy_pred;
 
-    a = pred_a_blkctx->dc_pred;
-    b = pred_b_blkctx->dc_pred;
-    c = pred_c_blkctx->dc_pred;
+    /* Predict DC */
+    a = pred_a_blkctx->dc_pred * a_avail;
+    b = pred_b_blkctx->dc_pred * b_avail;
+    c = pred_c_blkctx->dc_pred * c_avail;
 
-    a = (a * ff_vc1_dqscale[mbctx->dc_step_size] + 0x20000) >> 18;
-    b = (b * ff_vc1_dqscale[mbctx->dc_step_size] + 0x20000) >> 18;
-    c = (c * ff_vc1_dqscale[mbctx->dc_step_size] + 0x20000) >> 18;
+    a = (a * dqscale + 0x20000) >> 18;
+    b = (b * dqscale + 0x20000) >> 18;
+    c = (c * dqscale + 0x20000) >> 18;
 
     /* if (c_avail && (FFABS(b - a) <= FFABS(b - c) || !a_avail)) {
-     *   *dir_ptr = PRED_DIR_LEFT;
+     *   pred_dir = PRED_DIR_LEFT;
      *   pred = c;
      * } else if (a_avail) {
-     *   *dir_ptr = PRED_DIR_TOP;
+     *   pred_dir = PRED_DIR_TOP;
      *   pred = a;
      * } else {
-     *   *dir_ptr = PRED_DIR_LEFT;
+     *   pred_dir = PRED_DIR_LEFT;
      *   pred = 0;
      * }
      */
 
-    *dir_ptr = !a_avail | c_avail & FFABS(b - a) <= FFABS(b - c);
-    pred = c * c_avail * *dir_ptr + a * (1 - *dir_ptr);
+    pred_dir = !a_avail | c_avail & FFABS(b - a) <= FFABS(b - c);
+    block[0] = c * pred_dir + a * !pred_dir;
 
-    return pred;
+    /* Decode DC differential */
+    dc_diff = get_vlc2(gb, blkctx->dc_diff_vlc->table, 9, 3); // DCCOEF
+    if (dc_diff > 0) {
+        unsigned int m = (3 - mquant) * (mquant < 3);
+        int sign;
+
+        if (dc_diff == 119) {
+            dc_diff = get_bits(gb, 8 + m); // DCCOEF_ESC
+        } else {
+            if (m)
+                dc_diff = (dc_diff << m) + get_bits(gb, m) - ((1 << m) - 1); // DCCOEF_EXTQUANT[12]
+        }
+
+        sign = get_bits1(gb); // DCSIGN
+        dc_diff = (dc_diff ^ -sign) + sign;
+    }
+
+    /* Inverse quantize DC coefficient */
+    block[0] = av_clip_c((block[0] + dc_diff) * dc_step_size, -2048, 2047);
+
+    /* Store DC coefficient for further prediction */
+    curr_blkctx->dc_pred = block[0];
+    curr_blkctx->avail = 1;
+
+    blkctx->pred_dir = pred_dir;
+    blkctx->pred_blk_sh = 3 * (pred_dir ^ blkctx->fasttx);
 }
 
 /** @} */ // Block group
@@ -569,7 +599,8 @@ static int vc1_decode_ac_coeff(VC1Context *v, int *last, int *skip,
     if (index != ff_vc1_ac_sizes[codingset] - 1) {
         run   = vc1_index_decode_table[codingset][index][0];
         level = vc1_index_decode_table[codingset][index][1];
-        lst   = index >= vc1_last_decode_table[codingset] || get_bits_left(gb) < 0;
+        lst   = index >= vc1_last_decode_table[codingset] ||
+                get_bits_left(gb) < 0;
         sign  = get_bits1(gb);
     } else {
         int escape = decode210(gb);
@@ -604,6 +635,9 @@ static int vc1_decode_ac_coeff(VC1Context *v, int *last, int *skip,
                 }
                 v->s.esc3_run_length = 3 + get_bits(gb, 2);
             }
+            ((VC1SimplePictCtx*)v->pict)->ac_level_code_size = v->s.esc3_level_length;
+            ((VC1SimplePictCtx*)v->pict)->ac_run_code_size = v->s.esc3_run_length;
+
             run   = get_bits(gb, v->s.esc3_run_length);
             sign  = get_bits1(gb);
             level = get_bits(gb, v->s.esc3_level_length);
@@ -617,189 +651,160 @@ static int vc1_decode_ac_coeff(VC1Context *v, int *last, int *skip,
     return 0;
 }
 
+static int vc1_decode_ac_coeff_simple(VC1BlkCtx *blkctx,
+                                      int start_position,
+                                      int end_position,
+                                      GetBitContext *gb)
+{
+    VC1ACCodingSet *coding_set = blkctx->ac_coding_set;
+    int16_t *block = *blkctx->block;
+    uint8_t *zz = *blkctx->zz;
+    uint8_t *level_code_size = blkctx->ac_level_code_size;
+    uint8_t *run_code_size = blkctx->ac_run_code_size;
+    int index, run, level, last_flag, sign, escape_mode;
+    int i = start_position;
+
+    do {
+        index = get_vlc2(gb, // ACCOEF1
+                         coding_set->index_vlc->table,
+                         9,
+                         coding_set->max_depth);
+
+        if (index != coding_set->escape_index) {
+            run = coding_set->run_level_table[index][0];
+            level = coding_set->run_level_table[index][1];
+            sign = get_bits1(gb);
+            last_flag = index >= coding_set->start_index_of_last;
+        } else {
+            escape_mode = decode210(gb); // ESCMODE
+          if (escape_mode != 2) {
+                index = get_vlc2(gb, // ACCOEF2
+                                 coding_set->index_vlc->table,
+                                 9,
+                                 coding_set->max_depth);
+                run = coding_set->run_level_table[index][0];
+                level = coding_set->run_level_table[index][1];
+                last_flag = index >= coding_set->start_index_of_last;
+
+                if (escape_mode == 0)
+                    level += coding_set->delta_level_table[run + coding_set->delta_level_idx_of_last * last_flag];
+                else
+                    run += coding_set->delta_run_table[level + coding_set->delta_run_idx_of_last * last_flag] + 1;
+
+                sign = get_bits1(gb); // LVLSIGN
+            } else {
+                last_flag = get_bits1(gb);
+
+                if (*level_code_size == 0) {
+                    if (blkctx->esc_mode3_vlc) {
+                        *level_code_size = get_bits(gb, 3);
+                        if (*level_code_size == 0)
+                            *level_code_size = 8 + get_bits(gb, 2); // ESCLVLSZ
+                    } else {
+                        *level_code_size = 2 + get_unary(gb, 1, 6); // ESCRUNSZ
+                    }
+                    *run_code_size = 3 + get_bits(gb, 2); // ESCRUN
+                }
+
+                run = get_bits(gb, *run_code_size);
+                sign = get_bits1(gb); // LVLSIGN2
+                level = get_bits(gb, *level_code_size); // ESCLVL
+            }
+        }
+
+        level = (level ^ -sign) + sign;
+
+        i += run;
+        if (i > end_position)
+            return AVERROR_INVALIDDATA;
+
+        block[zz[i++]] += level;
+    } while(!last_flag);
+
+    return i;
+}
+
+static inline int vc1_decode_intra_ac(VC1IntraBlkCtx *blkctx,
+                                      GetBitContext *gb)
+{
+    VC1StoredBlkCtx *curr_blkctx = blkctx->curr_blkctx;
+    VC1StoredBlkCtx *top_blkctx = blkctx->top_blkctx;
+    VC1StoredBlkCtx *pred_a_blkctx = blkctx->top_blkctx;
+    VC1StoredBlkCtx *pred_c_blkctx = blkctx->curr_blkctx - 2;
+    unsigned int a_avail = pred_a_blkctx->avail;
+    unsigned int c_avail = pred_c_blkctx->avail;
+    int16_t *block = *blkctx->block;
+    int double_quant = blkctx->double_quant;
+    int pred_dir = blkctx->pred_dir;
+    unsigned int pred_blk_sh = blkctx->pred_blk_sh;
+    unsigned int fasttx = blkctx->fasttx;
+    unsigned int is_coded = blkctx->cbpcy;
+    unsigned int use_ac_pred = blkctx->use_ac_pred;
+    int k, init, cond;
+    int ret;
+
+    /* Predict AC */
+    if (use_ac_pred & (a_avail | c_avail)) {
+        for (k = 1; k < 8; k++) {
+            int ac_pred = pred_dir * (curr_blkctx - 2)->ac_pred_left[k - 1] +
+                          !pred_dir * top_blkctx->ac_pred_top[k - 1];
+
+            block[k << pred_blk_sh] = (ac_pred * ff_vc1_dqscale[double_quant - 1] + 0x20000) >> 18;
+        }
+    }
+
+    /* Decode AC differential */
+    if (is_coded) {
+        blkctx->zz = (*blkctx->zz_8x8)[use_ac_pred * (pred_dir + 1)];
+        ret = vc1_decode_ac_coeff_simple((VC1BlkCtx*)blkctx,
+                                         1,
+                                         63,
+                                         gb);
+        if (ret < 0)
+            return ret;
+    }
+
+    /* Store scaled AC coefficients for further prediction */
+    for (k = 1; k < 8; k++) {
+        curr_blkctx->ac_pred_top[k - 1] =
+            av_clip_c(block[k << 3 * fasttx] * (double_quant - 1), -2048, 2047);
+        curr_blkctx->ac_pred_left[k - 1] =
+            av_clip_c(block[k << 3 * !fasttx] * (double_quant - 1), -2048, 2047);
+    }
+
+    /* Store Coded Block Pattern for further prediction */
+    curr_blkctx->coded = is_coded;
+
+    /* Inverse quantize AC coefficients */
+    init = 1 << pred_blk_sh * !is_coded;
+    cond = 8 << 3 * (!!pred_blk_sh | is_coded);
+    for (k = init; k < cond; k += init) {
+        int sign = block[k] < 0;
+
+        block[k] *= double_quant;
+        block[k] += ((blkctx->quant_scale ^ -sign) + sign) * !!block[k];
+        block[k] = av_clip_c(block[k], -2048, 2047);
+    }
+
+    return 0;
+}
+
 /** Decode intra block in intra frames - should be faster than decode_intra_block
  * @param v VC1Context
  * @param block block to decode
  * @param[in] n subblock index
- * @param coded are AC coeffs present or not
- * @param codingset set of VLC to decode data
+ * @param is_coded are AC coeffs present or not
  */
-static int vc1_decode_i_block(VC1Context *v, int16_t block[64], int n,
-                              int coded, int codingset)
+static int vc1_decode_i_block(VC1IntraBlkCtx *blkctx,
+                              GetBitContext *gb)
 {
-    static const uint8_t blk_offset[6] = { 0, 2, 1, 3, 0, 1 };
+    int ret;
 
-    GetBitContext *gb = &v->s.gb;
-    MpegEncContext *s = &v->s;
-    int dc_pred_dir = 0; /* Direction of the DC prediction used */
-    int i;
-    int16_t *dc_val;
-    int16_t *ac_val, *ac_val2;
-    int dcdiff, scale;
-    int dcdiff_old;
-    VC1StoredBlkCtx *curr_blkctx, *top_blkctx;
-    int curr_blkidx, top_blkidx;
-    int is_chroma, is_bottom_luma;
+    vc1_decode_intra_dc(blkctx, gb);
 
-    /* if (n < BLOCK_CB) {
-     *     curr_blkidx = v->mbctx.mb_x * 4 + blk_offset[n];
-     *     top_blkidx = curr_blkidx ^ 1;
-     * } else {
-     *     curr_blkidx = v->c_blkidx_start + v->mbctx.mb_x * 2 + blk_offset[n];
-     *     top_blkidx = curr_blkidx;
-     * }
-     *
-     * curr_blkctx = v->s_blkctx[(s->mb_y + 1) % 2];
-     * if (n == BLOCK_Y2 || n == BLOCK_Y3) {
-     *     top_blkctx = curr_blkctx;
-     * } else {
-     *     if (v->slicectx.first_line)
-     *         top_blkidx = -1;
-     *     top_blkctx = v->s_blkctx[s->mb_y % 2];
-     * }
-     */
-
-    is_bottom_luma = !!(n & 2);
-    is_chroma = n > 3;
-
-    curr_blkctx = v->s_blkctx[s->mb_y & 1];
-    top_blkctx = v->s_blkctx[s->mb_y & 1 ^ !is_bottom_luma] - 1;
-
-    curr_blkidx = blk_offset[n] + v->mbctx.mb_x * 4;
-    // if (is_chroma)
-    curr_blkidx += (v->c_blkidx_start - v->mbctx.mb_x * 2) * is_chroma;
-    // if (!v->slicectx.first_line || is_bottom_luma)
-    top_blkidx = ((curr_blkidx ^ !is_chroma) + 1) * (!v->slicectx.first_line | is_bottom_luma);
-
-    curr_blkctx += curr_blkidx;
-    top_blkctx += top_blkidx;
-
-    /* Get DC differential */
-    if (n < 4) {
-        dcdiff = get_vlc2(&s->gb, ff_msmp4_dc_luma_vlc[s->dc_table_index].table, DC_VLC_BITS, 3);
-    } else {
-        dcdiff = get_vlc2(&s->gb, ff_msmp4_dc_chroma_vlc[s->dc_table_index].table, DC_VLC_BITS, 3);
-    }
-    if (dcdiff < 0) {
-        av_log(s->avctx, AV_LOG_ERROR, "Illegal DC VLC\n");
-        return -1;
-    }
-    if (dcdiff) {
-        const int m = (v->pq == 1 || v->pq == 2) ? 3 - v->pq : 0;
-        if (dcdiff == 119 /* ESC index value */) {
-            dcdiff = get_bits(gb, 8 + m);
-        } else {
-            if (m)
-                dcdiff = (dcdiff << m) + get_bits(gb, m) - ((1 << m) - 1);
-        }
-        if (get_bits1(gb))
-            dcdiff = -dcdiff;
-    }
-
-    /* Prediction */
-    dcdiff_old = vc1_i_pred_dc(&v->s, v->overlap, v->pq, n, &dc_val, &dc_pred_dir);
-    dcdiff += vc1_pred_dc_simple(&v->mbctx, curr_blkctx, top_blkctx, &dc_pred_dir);
-
-    av_assert0(dcdiff_old == vc1_pred_dc_simple(&v->mbctx, curr_blkctx, top_blkctx, &dc_pred_dir));
-
-    *dc_val = dcdiff;
-    curr_blkctx->dc_pred =
-        av_clip_c(*dc_val * v->mbctx.dc_step_size, -2048, 2047);
-    curr_blkctx->avail = 1;
-
-    /* Store the quantized DC coeff, used for prediction */
-    if (n < 4)
-        scale = s->y_dc_scale;
-    else
-        scale = s->c_dc_scale;
-    block[0] = dcdiff * scale;
-
-    ac_val  = s->ac_val[0][s->block_index[n]];
-    ac_val2 = ac_val;
-    if (dc_pred_dir) // left
-        ac_val -= 16;
-    else // top
-        ac_val -= 16 * s->block_wrap[n];
-
-    scale = v->pq * 2 + v->halfpq;
-
-    //AC Decoding
-    i = !!coded;
-
-    if (coded) {
-        int last = 0, skip, value;
-        const uint8_t *zz_table;
-        int k;
-
-        if (v->s.ac_pred) {
-            if (!dc_pred_dir)
-                zz_table = v->zz_8x8[2];
-            else
-                zz_table = v->zz_8x8[3];
-        } else
-            zz_table = v->zz_8x8[1];
-
-        while (!last) {
-            int ret = vc1_decode_ac_coeff(v, &last, &skip, &value, codingset);
-            if (ret < 0)
-                return ret;
-            i += skip;
-            if (i > 63)
-                break;
-            block[zz_table[i++]] = value;
-        }
-
-        /* apply AC prediction if needed */
-        if (s->ac_pred) {
-            int sh;
-            if (dc_pred_dir) { // left
-                sh = v->left_blk_sh;
-            } else { // top
-                sh = v->top_blk_sh;
-                ac_val += 8;
-            }
-            for (k = 1; k < 8; k++)
-                block[k << sh] += ac_val[k];
-        }
-        /* save AC coeffs for further prediction */
-        for (k = 1; k < 8; k++) {
-            ac_val2[k]     = block[k << v->left_blk_sh];
-            ac_val2[k + 8] = block[k << v->top_blk_sh];
-        }
-
-        /* scale AC coeffs */
-        for (k = 1; k < 64; k++)
-            if (block[k]) {
-                block[k] *= scale;
-                if (!v->pquantizer)
-                    block[k] += (block[k] < 0) ? -v->pq : v->pq;
-            }
-
-    } else {
-        int k;
-
-        memset(ac_val2, 0, 16 * 2);
-
-        /* apply AC prediction if needed */
-        if (s->ac_pred) {
-            int sh;
-            if (dc_pred_dir) { //left
-                sh = v->left_blk_sh;
-            } else { // top
-                sh = v->top_blk_sh;
-                ac_val  += 8;
-                ac_val2 += 8;
-            }
-            memcpy(ac_val2, ac_val, 8 * 2);
-            for (k = 1; k < 8; k++) {
-                block[k << sh] = ac_val[k] * scale;
-                if (!v->pquantizer && block[k << sh])
-                    block[k << sh] += (block[k << sh] < 0) ? -v->pq : v->pq;
-            }
-        }
-    }
-    if (s->ac_pred) i = 63;
-    s->block_last_index[n] = i;
+    ret = vc1_decode_intra_ac(blkctx, gb);
+    if (ret < 0)
+        return ret;
 
     return 0;
 }
@@ -1007,8 +1012,12 @@ static int vc1_decode_i_block_adv(VC1Context *v, int16_t block[64], int n,
  * @param mquant block quantizer
  * @param codingset set of VLC to decode data
  */
-static int vc1_decode_intra_block(VC1Context *v, int16_t block[64], int n,
-                                  int coded, int mquant, int codingset)
+static int vc1_decode_intra_block(VC1Context *v,
+                                  int16_t block[64],
+                                  int n,
+                                  int coded,
+                                  int mquant,
+                                  int codingset)
 {
     GetBitContext *gb = &v->s.gb;
     MpegEncContext *s = &v->s;
@@ -1058,9 +1067,6 @@ static int vc1_decode_intra_block(VC1Context *v, int16_t block[64], int n,
 
     /* Prediction */
     dcdiff_old = ff_vc1_pred_dc(&v->s, v->overlap, quant, n, a_avail, c_avail, &dc_val, &dc_pred_dir);
-//    dcdiff_new = vc1_pred_dc_simple(&v->mbctx, n, &dc_pred_dir_new);
-//    av_assert0(dcdiff_old == dcdiff_new);
-//    av_assert0(dc_pred_dir == dc_pred_dir_new);
     dcdiff += dcdiff_old;
     *dc_val = dcdiff;
 
@@ -1072,6 +1078,233 @@ static int vc1_decode_intra_block(VC1Context *v, int16_t block[64], int n,
         block[0] = dcdiff * s->c_dc_scale;
     }
 
+    //AC Decoding
+    i = 1;
+
+    /* check if AC is needed at all and adjust direction if needed */
+    if (!a_avail) dc_pred_dir = 1;
+    if (!c_avail) dc_pred_dir = 0;
+    if (!a_avail && !c_avail) use_pred = 0;
+    ac_val = s->ac_val[0][s->block_index[n]];
+    ac_val2 = ac_val;
+
+    scale = quant * 2 + ((mquant < 0) ? 0 : v->halfpq);
+
+    if (dc_pred_dir) //left
+        ac_val -= 16;
+    else //top
+        ac_val -= 16 * s->block_wrap[n];
+
+    q1 = s->current_picture.qscale_table[mb_pos];
+    if (dc_pred_dir && c_avail && mb_pos)
+        q2 = s->current_picture.qscale_table[mb_pos - 1];
+    if (!dc_pred_dir && a_avail && mb_pos >= s->mb_stride)
+        q2 = s->current_picture.qscale_table[mb_pos - s->mb_stride];
+    if (dc_pred_dir && n == 1)
+        q2 = q1;
+    if (!dc_pred_dir && n == 2)
+        q2 = q1;
+    if (n == 3) q2 = q1;
+
+    if (coded) {
+        int last = 0, skip, value;
+        int k;
+
+        while (!last) {
+            int ret = vc1_decode_ac_coeff(v, &last, &skip, &value, codingset);
+            if (ret < 0)
+                return ret;
+            i += skip;
+            if (i > 63)
+                break;
+            if (v->fcm == PROGRESSIVE)
+                block[v->zz_8x8[0][i++]] = value;
+            else {
+                if (use_pred && (v->fcm == ILACE_FRAME)) {
+                    if (!dc_pred_dir) // top
+                        block[v->zz_8x8[2][i++]] = value;
+                    else // left
+                        block[v->zz_8x8[3][i++]] = value;
+                } else {
+                    block[v->zzi_8x8[i++]] = value;
+                }
+            }
+        }
+
+        /* apply AC prediction if needed */
+        if (use_pred) {
+            /* scale predictors if needed*/
+            q1 = FFABS(q1) * 2 + ((q1 < 0) ? 0 : v->halfpq) - 1;
+            if (q1 < 1)
+                return AVERROR_INVALIDDATA;
+            if (q2)
+                q2 = FFABS(q2) * 2 + ((q2 < 0) ? 0 : v->halfpq) - 1;
+            if (q2 && q1 != q2) {
+                if (dc_pred_dir) { // left
+                    for (k = 1; k < 8; k++)
+                        block[k << v->left_blk_sh] += (int)(ac_val[k] * q2 * (unsigned)ff_vc1_dqscale[q1] + 0x20000) >> 18;
+                } else { //top
+                    for (k = 1; k < 8; k++)
+                        block[k << v->top_blk_sh] += (int)(ac_val[k + 8] * q2 * (unsigned)ff_vc1_dqscale[q1] + 0x20000) >> 18;
+                }
+            } else {
+                if (dc_pred_dir) { // left
+                    for (k = 1; k < 8; k++)
+                        block[k << v->left_blk_sh] += ac_val[k];
+                } else { // top
+                    for (k = 1; k < 8; k++)
+                        block[k << v->top_blk_sh] += ac_val[k + 8];
+                }
+            }
+        }
+        /* save AC coeffs for further prediction */
+        for (k = 1; k < 8; k++) {
+            ac_val2[k    ] = block[k << v->left_blk_sh];
+            ac_val2[k + 8] = block[k << v->top_blk_sh];
+        }
+
+        /* scale AC coeffs */
+        for (k = 1; k < 64; k++)
+            if (block[k]) {
+                block[k] *= scale;
+                if (!v->pquantizer)
+                    block[k] += (block[k] < 0) ? -quant : quant;
+            }
+
+        if (use_pred) i = 63;
+    } else { // no AC coeffs
+        int k;
+
+        memset(ac_val2, 0, 16 * 2);
+        if (dc_pred_dir) { // left
+            if (use_pred) {
+                memcpy(ac_val2, ac_val, 8 * 2);
+                q1 = FFABS(q1) * 2 + ((q1 < 0) ? 0 : v->halfpq) - 1;
+                if (q1 < 1)
+                    return AVERROR_INVALIDDATA;
+                if (q2)
+                    q2 = FFABS(q2) * 2 + ((q2 < 0) ? 0 : v->halfpq) - 1;
+                if (q2 && q1 != q2) {
+                    for (k = 1; k < 8; k++)
+                        ac_val2[k] = (ac_val2[k] * q2 * ff_vc1_dqscale[q1] + 0x20000) >> 18;
+                }
+            }
+        } else { // top
+            if (use_pred) {
+                memcpy(ac_val2 + 8, ac_val + 8, 8 * 2);
+                q1 = FFABS(q1) * 2 + ((q1 < 0) ? 0 : v->halfpq) - 1;
+                if (q1 < 1)
+                    return AVERROR_INVALIDDATA;
+                if (q2)
+                    q2 = FFABS(q2) * 2 + ((q2 < 0) ? 0 : v->halfpq) - 1;
+                if (q2 && q1 != q2) {
+                    for (k = 1; k < 8; k++)
+                        ac_val2[k + 8] = (ac_val2[k + 8] * q2 * ff_vc1_dqscale[q1] + 0x20000) >> 18;
+                }
+            }
+        }
+
+        /* apply AC prediction if needed */
+        if (use_pred) {
+            if (dc_pred_dir) { // left
+                for (k = 1; k < 8; k++) {
+                    block[k << v->left_blk_sh] = ac_val2[k] * scale;
+                    if (!v->pquantizer && block[k << v->left_blk_sh])
+                        block[k << v->left_blk_sh] += (block[k << v->left_blk_sh] < 0) ? -quant : quant;
+                }
+            } else { // top
+                for (k = 1; k < 8; k++) {
+                    block[k << v->top_blk_sh] = ac_val2[k + 8] * scale;
+                    if (!v->pquantizer && block[k << v->top_blk_sh])
+                        block[k << v->top_blk_sh] += (block[k << v->top_blk_sh] < 0) ? -quant : quant;
+                }
+            }
+            i = 63;
+        }
+    }
+    s->block_last_index[n] = i;
+
+    return 0;
+}
+
+static int vc1_decode_intra_block_new(VC1Context *v,
+                                      VC1IntraBlkCtx *blkctx,
+                                      int16_t block[64],
+                                      int n,
+                                      int coded,
+                                      int mquant,
+                                      int codingset)
+{
+    GetBitContext *gb = &v->s.gb;
+    MpegEncContext *s = &v->s;
+    int dc_pred_dir = 0; /* Direction of the DC prediction used */
+    int i;
+    int16_t *dc_val = NULL;
+    int16_t *ac_val, *ac_val2;
+    int dcdiff;
+    int mb_pos = s->mb_x + s->mb_y * s->mb_stride;
+    int a_avail = v->a_avail, c_avail = v->c_avail;
+    int use_pred = s->ac_pred;
+    int scale;
+    int q1, q2 = 0;
+    int quant = FFABS(mquant);
+    int dcdiff_old;
+    int ret;
+
+    s->bdsp.clear_block(block);
+
+    /* XXX: Guard against dumb values of mquant */
+    quant = av_clip_uintp2(quant, 5);
+
+    /* Set DC scale - y and c use the same */
+    s->y_dc_scale = s->y_dc_scale_table[quant];
+    s->c_dc_scale = s->c_dc_scale_table[quant];
+
+    if (v->seq->profile == PROFILE_ADVANCED) {
+        /* Get DC differential */
+        if (n < 4) {
+            dcdiff = get_vlc2(&s->gb, ff_msmp4_dc_luma_vlc[s->dc_table_index].table, DC_VLC_BITS, 3);
+        } else {
+            dcdiff = get_vlc2(&s->gb, ff_msmp4_dc_chroma_vlc[s->dc_table_index].table, DC_VLC_BITS, 3);
+        }
+        if (dcdiff < 0) {
+            av_log(s->avctx, AV_LOG_ERROR, "Illegal DC VLC\n");
+            return -1;
+        }
+        if (dcdiff) {
+            const int m = (quant == 1 || quant == 2) ? 3 - quant : 0;
+            if (dcdiff == 119 /* ESC index value */) {
+                dcdiff = get_bits(gb, 8 + m);
+            } else {
+                if (m)
+                    dcdiff = (dcdiff << m) + get_bits(gb, m) - ((1 << m) - 1);
+            }
+            if (get_bits1(gb))
+                dcdiff = -dcdiff;
+        }
+
+        /* Prediction */
+        dcdiff_old = ff_vc1_pred_dc(&v->s, v->overlap, quant, n, a_avail, c_avail, &dc_val, &dc_pred_dir);
+        dcdiff += dcdiff_old;
+        *dc_val = dcdiff;
+
+        /* Store the quantized DC coeff, used for prediction */
+
+        if (n < 4) {
+            block[0] = dcdiff * s->y_dc_scale;
+        } else {
+            block[0] = dcdiff * s->c_dc_scale;
+        }
+    } else {
+        ret = vc1_decode_i_block(blkctx, gb);
+        if (ret < 0)
+            return ret;
+
+        v->s.esc3_level_length = *blkctx->ac_level_code_size;
+        v->s.esc3_run_length = *blkctx->ac_run_code_size;
+
+        return 0;
+    }
     //AC Decoding
     i = 1;
 
@@ -1395,10 +1628,16 @@ static const uint8_t size_table[6] = { 0, 2, 3, 4,  5,  8 };
 
 /** Decode one P-frame MB
  */
-static int vc1_decode_p_mb(VC1Context *v)
+static int vc1_decode_p_mb(VC1Context *v,
+                           VC1PMBCtx *mbctx,
+                           VC1IntraBlkCtx *intra_blkctx,
+                           GetBitContext *gb)
 {
     MpegEncContext *s = &v->s;
-    GetBitContext *gb = &s->gb;
+    VC1SimplePictCtx *simple_pict = (VC1SimplePictCtx*)v->pict;
+    VC1PPictCtx *p_pict = (VC1PPictCtx*)v->pict;
+    VC1StoredBlkCtx *curr_sblkctx, *top_sblkctx;
+    int cbpcy;
     int i, j;
     int mb_pos = s->mb_x + s->mb_y * s->mb_stride;
     int cbp; /* cbp decoding stuff */
@@ -1413,8 +1652,20 @@ static int vc1_decode_p_mb(VC1Context *v)
     int dst_idx, off;
     int skipped, fourmv;
     int block_cbp = 0, pat, block_tt = 0, block_intra = 0;
+    int y_curr_blkidx = mbctx->y_curr_blkidx;
+    int c_curr_blkidx = mbctx->c_curr_blkidx;
+    int first_slice_line = -mbctx->first_slice_line;
+    int ret;
 
     mquant = v->pq; /* lossy initialization */
+
+    curr_sblkctx = mbctx->curr_sblkctx;
+    top_sblkctx = mbctx->top_sblkctx;
+
+    // TODO: this changes the crc for SA10164, SA10165 and SA10166
+    // However, these streams are Pan and Scan and currently not
+    // decoded correctly anyway.
+    s->bdsp.clear_blocks(v->block[v->cur_blk_idx][0]);
 
     if (v->mv_type_is_raw)
         fourmv = get_bits1(gb);
@@ -1439,16 +1690,19 @@ static int vc1_decode_p_mb(VC1Context *v)
             /* FIXME Set DC val for inter block ? */
             if (s->mb_intra && !mb_has_coeffs) {
                 GET_MQUANT();
-                s->ac_pred = get_bits1(gb);
-                cbp        = 0;
+                s->ac_pred = mbctx->acpred = get_bits1(gb);
+                cbp = cbpcy = 0;
             } else if (mb_has_coeffs) {
                 if (s->mb_intra)
-                    s->ac_pred = get_bits1(gb);
-                cbp = get_vlc2(&v->s.gb, v->cbpcy_vlc->table, VC1_CBPCY_P_VLC_BITS, 2);
+                    s->ac_pred = mbctx->acpred = get_bits1(gb);
+                if (v->seq->profile == PROFILE_ADVANCED)
+                    cbp = cbpcy = get_vlc2(&v->s.gb, v->cbpcy_vlc->table, VC1_CBPCY_P_VLC_BITS, 2);
+                else
+                    cbp = cbpcy = get_vlc2(&v->s.gb, mbctx->cbpcy_vlc->table, 8, 2); // CBPCY
                 GET_MQUANT();
             } else {
                 mquant = v->pq;
-                cbp    = 0;
+                cbp = cbpcy = 0;
             }
             s->current_picture.qscale_table[mb_pos] = mquant;
 
@@ -1471,10 +1725,135 @@ static int vc1_decode_p_mb(VC1Context *v)
                     if (i == 1 || i == 3 || s->mb_x)
                         v->c_avail = v->mb_type[0][s->block_index[i] - 1];
 
-                    vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, val, mquant,
-                                           (i & 4) ? v->codingset2 : v->codingset);
+                    mbctx->mquant = FFABS(mquant);
+                    intra_blkctx->halfqp = simple_pict->halfqp * (mquant > 0);
+
+                    intra_blkctx->mquant = mbctx->mquant;
+                    intra_blkctx->double_quant = 2 * mbctx->mquant + intra_blkctx->halfqp;
+                    intra_blkctx->quant_scale = mbctx->mquant * !simple_pict->pquantizer;
+                    intra_blkctx->use_ac_pred = mbctx->acpred;
+
+                    intra_blkctx->component = COMPONENT_LUMA;
+                    intra_blkctx->ac_coding_set = &mbctx->ac_coding_set[COMPONENT_LUMA];
+                    intra_blkctx->dc_diff_vlc = &(*mbctx->dc_diff_vlc)[COMPONENT_LUMA];
+
+                    intra_blkctx->curr_blkctx = curr_sblkctx + y_curr_blkidx;
+                    intra_blkctx->top_blkctx = top_sblkctx + (y_curr_blkidx + 1 | first_slice_line);
+                    intra_blkctx->block = &v->block[v->cur_blk_idx][0];
+                    intra_blkctx->cbpcy = cbpcy & 0b100000;
+                    if (i == 0) {
+                        if (v->seq->profile == PROFILE_ADVANCED) {
+                            vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, val, mquant,
+                                                   (i & 4) ? v->codingset2 : v->codingset);
+                        } else {
+                            ret = vc1_decode_i_block(intra_blkctx, gb);
+                            if (ret < 0)
+                                return ret;
+
+                            v->s.esc3_level_length = *intra_blkctx->ac_level_code_size;
+                            v->s.esc3_run_length = *intra_blkctx->ac_run_code_size;
+                        }
+                    }
+
+                    intra_blkctx->curr_blkctx = curr_sblkctx + y_curr_blkidx + 2;
+                    intra_blkctx->top_blkctx = top_sblkctx + (y_curr_blkidx + 3 | first_slice_line);
+                    intra_blkctx->block = &v->block[v->cur_blk_idx][2];
+                    intra_blkctx->cbpcy = cbpcy & 0b010000;
+                    if (i == 1) {
+                        if (v->seq->profile == PROFILE_ADVANCED) {
+                            vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, val, mquant,
+                                                   (i & 4) ? v->codingset2 : v->codingset);
+                        } else {
+                            ret = vc1_decode_i_block(intra_blkctx, gb);
+                            if (ret < 0)
+                                return ret;
+
+                            v->s.esc3_level_length = *intra_blkctx->ac_level_code_size;
+                            v->s.esc3_run_length = *intra_blkctx->ac_run_code_size;
+                        }
+                    }
+
+                    intra_blkctx->curr_blkctx = curr_sblkctx + y_curr_blkidx + 1;
+                    intra_blkctx->top_blkctx = intra_blkctx->curr_blkctx - 1;
+                    intra_blkctx->block = &v->block[v->cur_blk_idx][1];
+                    intra_blkctx->cbpcy = cbpcy & 0b001000;
+                    if (i == 2) {
+                        if (v->seq->profile == PROFILE_ADVANCED) {
+                            vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, val, mquant,
+                                                   (i & 4) ? v->codingset2 : v->codingset);
+                        } else {
+                            ret = vc1_decode_i_block(intra_blkctx, gb);
+                            if (ret < 0)
+                                return ret;
+
+                            v->s.esc3_level_length = *intra_blkctx->ac_level_code_size;
+                            v->s.esc3_run_length = *intra_blkctx->ac_run_code_size;
+                        }
+                    }
+
+                    intra_blkctx->curr_blkctx = curr_sblkctx + y_curr_blkidx + 3;
+                    intra_blkctx->top_blkctx = intra_blkctx->curr_blkctx - 1;
+                    intra_blkctx->block = &v->block[v->cur_blk_idx][3];
+                    intra_blkctx->cbpcy = cbpcy & 0b000100;
+                    if (i == 3) {
+                        if (v->seq->profile == PROFILE_ADVANCED) {
+                            vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, val, mquant,
+                                                   (i & 4) ? v->codingset2 : v->codingset);
+                        } else {
+                            ret = vc1_decode_i_block(intra_blkctx, gb);
+                            if (ret < 0)
+                                return ret;
+
+                            v->s.esc3_level_length = *intra_blkctx->ac_level_code_size;
+                            v->s.esc3_run_length = *intra_blkctx->ac_run_code_size;
+                        }
+                    }
+
+//                    vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, val, mquant,
+//                                           (i & 4) ? v->codingset2 : v->codingset);
+                    intra_blkctx->component = COMPONENT_CHROMA;
+                    intra_blkctx->ac_coding_set = &mbctx->ac_coding_set[COMPONENT_CHROMA];
+                    intra_blkctx->dc_diff_vlc = &(*mbctx->dc_diff_vlc)[COMPONENT_CHROMA];
+
+                    intra_blkctx->curr_blkctx = curr_sblkctx + c_curr_blkidx;
+                    intra_blkctx->top_blkctx = top_sblkctx + (c_curr_blkidx | first_slice_line);
+                    intra_blkctx->block = &v->block[v->cur_blk_idx][4];
+                    intra_blkctx->cbpcy = cbpcy & 0b000010;
+                    if (i == 4) {
+                        if (v->seq->profile == PROFILE_ADVANCED) {
+                            vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, val, mquant,
+                                                   (i & 4) ? v->codingset2 : v->codingset);
+                        } else {
+                            ret = vc1_decode_i_block(intra_blkctx, gb);
+                            if (ret < 0)
+                                return ret;
+
+                            v->s.esc3_level_length = *intra_blkctx->ac_level_code_size;
+                            v->s.esc3_run_length = *intra_blkctx->ac_run_code_size;
+                        }
+                    }
+
+                    intra_blkctx->curr_blkctx = curr_sblkctx + c_curr_blkidx + 1;
+                    intra_blkctx->top_blkctx = top_sblkctx + (c_curr_blkidx + 1 | first_slice_line);
+                    intra_blkctx->block = &v->block[v->cur_blk_idx][5];
+                    intra_blkctx->cbpcy = cbpcy & 0b000001;
+                    if (i == 5) {
+                        if (v->seq->profile == PROFILE_ADVANCED) {
+                            vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, val, mquant,
+                                                   (i & 4) ? v->codingset2 : v->codingset);
+                        } else {
+                            ret = vc1_decode_i_block(intra_blkctx, gb);
+                            if (ret < 0)
+                                return ret;
+
+                            v->s.esc3_level_length = *intra_blkctx->ac_level_code_size;
+                            v->s.esc3_run_length = *intra_blkctx->ac_run_code_size;
+                        }
+                    }
+
                     if (CONFIG_GRAY && (i > 3) && (s->avctx->flags & AV_CODEC_FLAG_GRAY))
                         continue;
+
                     v->vc1dsp.vc1_inv_trans_8x8(v->block[v->cur_blk_idx][block_map[i]]);
                     if (v->rangeredfrm)
                         for (j = 0; j < 64; j++)
@@ -1482,6 +1861,19 @@ static int vc1_decode_p_mb(VC1Context *v)
                     block_cbp   |= 0xF << (i << 2);
                     block_intra |= 1 << i;
                 } else if (val) {
+                    if (i == 0)
+                        (curr_sblkctx + y_curr_blkidx)->avail = 0;
+                    if (i == 1)
+                        (curr_sblkctx + y_curr_blkidx + 2)->avail = 0;
+                    if (i == 2)
+                        (curr_sblkctx + y_curr_blkidx + 1)->avail = 0;
+                    if (i == 3)
+                        (curr_sblkctx + y_curr_blkidx + 3)->avail = 0;
+                    if (i == 4)
+                        (curr_sblkctx + c_curr_blkidx)->avail = 0;
+                    if (i == 5)
+                        (curr_sblkctx + c_curr_blkidx + 1)->avail = 0;
+
                     pat = vc1_decode_p_block(v, v->block[v->cur_blk_idx][block_map[i]], i, mquant, ttmb, first_block,
                                              s->dest[dst_idx] + off, (i & 4) ? s->uvlinesize : s->linesize,
                                              CONFIG_GRAY && (i & 4) && (s->avctx->flags & AV_CODEC_FLAG_GRAY), &block_tt);
@@ -1491,9 +1883,29 @@ static int vc1_decode_p_mb(VC1Context *v)
                     if (!v->ttmbf && ttmb < 8)
                         ttmb = -1;
                     first_block = 0;
+                } else {
+                    if (i == 0)
+                        (curr_sblkctx + y_curr_blkidx)->avail = 0;
+                    if (i == 1)
+                        (curr_sblkctx + y_curr_blkidx + 2)->avail = 0;
+                    if (i == 2)
+                        (curr_sblkctx + y_curr_blkidx + 1)->avail = 0;
+                    if (i == 3)
+                        (curr_sblkctx + y_curr_blkidx + 3)->avail = 0;
+                    if (i == 4)
+                        (curr_sblkctx + c_curr_blkidx)->avail = 0;
+                    if (i == 5)
+                        (curr_sblkctx + c_curr_blkidx + 1)->avail = 0;
                 }
             }
         } else { // skipped
+            (curr_sblkctx + y_curr_blkidx)->avail = 0;
+            (curr_sblkctx + y_curr_blkidx + 2)->avail = 0;
+            (curr_sblkctx + y_curr_blkidx + 1)->avail = 0;
+            (curr_sblkctx + y_curr_blkidx + 3)->avail = 0;
+            (curr_sblkctx + c_curr_blkidx)->avail = 0;
+            (curr_sblkctx + c_curr_blkidx + 1)->avail = 0;
+
             s->mb_intra = 0;
             for (i = 0; i < 6; i++) {
                 v->mb_type[0][s->block_index[i]] = 0;
@@ -1509,7 +1921,10 @@ static int vc1_decode_p_mb(VC1Context *v)
             int intra_count = 0, coded_inter = 0;
             int is_intra[6], is_coded[6];
             /* Get CBPCY */
-            cbp = get_vlc2(&v->s.gb, v->cbpcy_vlc->table, VC1_CBPCY_P_VLC_BITS, 2);
+            if (v->seq->profile == PROFILE_ADVANCED)
+                cbp = get_vlc2(&v->s.gb, v->cbpcy_vlc->table, VC1_CBPCY_P_VLC_BITS, 2);
+            else
+                cbp = cbpcy = get_vlc2(&v->s.gb, mbctx->cbpcy_vlc->table, 8, 2); // CBPCY
             for (i = 0; i < 6; i++) {
                 val = ((cbp >> (5 - i)) & 1);
                 s->dc_val[0][s->block_index[i]] = 0;
@@ -1540,8 +1955,16 @@ static int vc1_decode_p_mb(VC1Context *v)
             }
             // if there are no coded blocks then don't do anything more
             dst_idx = 0;
-            if (!intra_count && !coded_inter)
+            if (!intra_count && !coded_inter){
+                (curr_sblkctx + y_curr_blkidx)->avail = 0;
+                (curr_sblkctx + y_curr_blkidx + 2)->avail = 0;
+                (curr_sblkctx + y_curr_blkidx + 1)->avail = 0;
+                (curr_sblkctx + y_curr_blkidx + 3)->avail = 0;
+                (curr_sblkctx + c_curr_blkidx)->avail = 0;
+                (curr_sblkctx + c_curr_blkidx + 1)->avail = 0;
+
                 goto end;
+            }
             GET_MQUANT();
             s->current_picture.qscale_table[mb_pos] = mquant;
             /* test if block is intra and has pred */
@@ -1556,9 +1979,9 @@ static int vc1_decode_p_mb(VC1Context *v)
                         }
                     }
                 if (intrapred)
-                    s->ac_pred = get_bits1(gb);
+                    s->ac_pred = mbctx->acpred = get_bits1(gb);
                 else
-                    s->ac_pred = 0;
+                    s->ac_pred = mbctx->acpred = 0;
             }
             if (!v->ttmbf && coded_inter)
                 ttmb = get_vlc2(gb, ff_vc1_ttmb_vlc[v->tt_index].table, VC1_TTMB_VLC_BITS, 2);
@@ -1574,10 +1997,141 @@ static int vc1_decode_p_mb(VC1Context *v)
                     if (i == 1 || i == 3 || s->mb_x)
                         v->c_avail = v->mb_type[0][s->block_index[i] - 1];
 
-                    vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, is_coded[i], mquant,
-                                           (i & 4) ? v->codingset2 : v->codingset);
+                    mbctx->mquant = FFABS(mquant);
+                    intra_blkctx->halfqp = simple_pict->halfqp * (mquant > 0);
+
+                    intra_blkctx->mquant = mbctx->mquant;
+                    intra_blkctx->double_quant = 2 * mbctx->mquant + intra_blkctx->halfqp;
+                    intra_blkctx->quant_scale = mbctx->mquant * !simple_pict->pquantizer;
+                    intra_blkctx->use_ac_pred = mbctx->acpred;
+
+                    intra_blkctx->component = COMPONENT_LUMA;
+                    intra_blkctx->ac_coding_set = &mbctx->ac_coding_set[COMPONENT_LUMA];
+                    intra_blkctx->dc_diff_vlc = &(*mbctx->dc_diff_vlc)[COMPONENT_LUMA];
+
+                    intra_blkctx->curr_blkctx = curr_sblkctx + y_curr_blkidx;
+                    intra_blkctx->top_blkctx = top_sblkctx + (y_curr_blkidx + 1 | first_slice_line);
+                    intra_blkctx->block = &v->block[v->cur_blk_idx][0];
+//                  intra_blkctx->cbpcy = cbpcy >> 5 & 1;
+                    intra_blkctx->cbpcy = !!is_coded[0];
+                    if (i == 0) {
+                        if (v->seq->profile == PROFILE_ADVANCED) {
+                            vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, is_coded[i], mquant,
+                                                   (i & 4) ? v->codingset2 : v->codingset);
+                        } else {
+                            ret = vc1_decode_i_block(intra_blkctx, gb);
+                            if (ret < 0)
+                                return ret;
+
+                            v->s.esc3_level_length = *intra_blkctx->ac_level_code_size;
+                            v->s.esc3_run_length = *intra_blkctx->ac_run_code_size;
+                        }
+                    }
+
+                    intra_blkctx->curr_blkctx = curr_sblkctx + y_curr_blkidx + 2;
+                    intra_blkctx->top_blkctx = top_sblkctx + (y_curr_blkidx + 3 | first_slice_line);
+                    intra_blkctx->block = &v->block[v->cur_blk_idx][2];
+//                  intra_blkctx->cbpcy = cbpcy >> 4 & 1;
+                    intra_blkctx->cbpcy = !!is_coded[1];
+                    if (i == 1) {
+                        if (v->seq->profile == PROFILE_ADVANCED) {
+                            vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, is_coded[i], mquant,
+                                                   (i & 4) ? v->codingset2 : v->codingset);
+                        } else {
+                            ret = vc1_decode_i_block(intra_blkctx, gb);
+                            if (ret < 0)
+                                return ret;
+
+                            v->s.esc3_level_length = *intra_blkctx->ac_level_code_size;
+                            v->s.esc3_run_length = *intra_blkctx->ac_run_code_size;
+                        }
+                    }
+
+                    intra_blkctx->curr_blkctx = curr_sblkctx + y_curr_blkidx + 1;
+                    intra_blkctx->top_blkctx = intra_blkctx->curr_blkctx - 1;
+                    intra_blkctx->block = &v->block[v->cur_blk_idx][1];
+//                  intra_blkctx->cbpcy = cbpcy >> 3 & 1;
+                    intra_blkctx->cbpcy = !!is_coded[2];
+                    if (i == 2) {
+                        if (v->seq->profile == PROFILE_ADVANCED) {
+                            vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, is_coded[i], mquant,
+                                                   (i & 4) ? v->codingset2 : v->codingset);
+                        } else {
+                            ret = vc1_decode_i_block(intra_blkctx, gb);
+                            if (ret < 0)
+                                return ret;
+
+                            v->s.esc3_level_length = *intra_blkctx->ac_level_code_size;
+                            v->s.esc3_run_length = *intra_blkctx->ac_run_code_size;
+                        }
+                    }
+
+                    intra_blkctx->curr_blkctx = curr_sblkctx + y_curr_blkidx + 3;
+                    intra_blkctx->top_blkctx = intra_blkctx->curr_blkctx - 1;
+                    intra_blkctx->block = &v->block[v->cur_blk_idx][3];
+//                  intra_blkctx->cbpcy = cbpcy >> 2 & 1;
+                    intra_blkctx->cbpcy = !!is_coded[3];
+                    if (i == 3) {
+                        if (v->seq->profile == PROFILE_ADVANCED) {
+                            vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, is_coded[i], mquant,
+                                                   (i & 4) ? v->codingset2 : v->codingset);
+                        } else {
+                            ret = vc1_decode_i_block(intra_blkctx, gb);
+                            if (ret < 0)
+                                return ret;
+
+                            v->s.esc3_level_length = *intra_blkctx->ac_level_code_size;
+                            v->s.esc3_run_length = *intra_blkctx->ac_run_code_size;
+                        }
+                    }
+
+//                    vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, is_coded[i], mquant,
+//                                           (i & 4) ? v->codingset2 : v->codingset);
+                    intra_blkctx->component = COMPONENT_CHROMA;
+                    intra_blkctx->ac_coding_set = &mbctx->ac_coding_set[COMPONENT_CHROMA];
+                    intra_blkctx->dc_diff_vlc = &(*mbctx->dc_diff_vlc)[COMPONENT_CHROMA];
+
+                    intra_blkctx->curr_blkctx = curr_sblkctx + c_curr_blkidx;
+                    intra_blkctx->top_blkctx = top_sblkctx + (c_curr_blkidx | first_slice_line);
+                    intra_blkctx->block = &v->block[v->cur_blk_idx][4];
+                    intra_blkctx->cbpcy = cbpcy & 0b000010;
+//                    intra_blkctx->cbpcy = !!is_coded[4];
+                    if (i == 4) {
+                        if (v->seq->profile == PROFILE_ADVANCED) {
+                            vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, is_coded[i], mquant,
+                                                   (i & 4) ? v->codingset2 : v->codingset);
+                        } else {
+                            ret = vc1_decode_i_block(intra_blkctx, gb);
+                            if (ret < 0)
+                                return ret;
+
+                            v->s.esc3_level_length = *intra_blkctx->ac_level_code_size;
+                            v->s.esc3_run_length = *intra_blkctx->ac_run_code_size;
+                        }
+                    }
+
+                    intra_blkctx->curr_blkctx = curr_sblkctx + c_curr_blkidx + 1;
+                    intra_blkctx->top_blkctx = top_sblkctx + (c_curr_blkidx + 1 | first_slice_line);
+                    intra_blkctx->block = &v->block[v->cur_blk_idx][5];
+                    intra_blkctx->cbpcy = cbpcy & 0b000001;
+//                    intra_blkctx->cbpcy = !!is_coded[5];
+                    if (i == 5) {
+                        if (v->seq->profile == PROFILE_ADVANCED) {
+                            vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, is_coded[i], mquant,
+                                                   (i & 4) ? v->codingset2 : v->codingset);
+                        } else {
+                            ret = vc1_decode_i_block(intra_blkctx, gb);
+                            if (ret < 0)
+                                return ret;
+
+                            v->s.esc3_level_length = *intra_blkctx->ac_level_code_size;
+                            v->s.esc3_run_length = *intra_blkctx->ac_run_code_size;
+                        }
+                    }
+
                     if (CONFIG_GRAY && (i > 3) && (s->avctx->flags & AV_CODEC_FLAG_GRAY))
                         continue;
+
                     v->vc1dsp.vc1_inv_trans_8x8(v->block[v->cur_blk_idx][block_map[i]]);
                     if (v->rangeredfrm)
                         for (j = 0; j < 64; j++)
@@ -1585,6 +2139,19 @@ static int vc1_decode_p_mb(VC1Context *v)
                     block_cbp   |= 0xF << (i << 2);
                     block_intra |= 1 << i;
                 } else if (is_coded[i]) {
+                    if (i == 0)
+                        (curr_sblkctx + y_curr_blkidx)->avail = 0;
+                    if (i == 1)
+                        (curr_sblkctx + y_curr_blkidx + 2)->avail = 0;
+                    if (i == 2)
+                        (curr_sblkctx + y_curr_blkidx + 1)->avail = 0;
+                    if (i == 3)
+                        (curr_sblkctx + y_curr_blkidx + 3)->avail = 0;
+                    if (i == 4)
+                        (curr_sblkctx + c_curr_blkidx)->avail = 0;
+                    if (i == 5)
+                        (curr_sblkctx + c_curr_blkidx + 1)->avail = 0;
+
                     pat = vc1_decode_p_block(v, v->block[v->cur_blk_idx][block_map[i]], i, mquant, ttmb,
                                              first_block, s->dest[dst_idx] + off,
                                              (i & 4) ? s->uvlinesize : s->linesize,
@@ -1596,9 +2163,29 @@ static int vc1_decode_p_mb(VC1Context *v)
                     if (!v->ttmbf && ttmb < 8)
                         ttmb = -1;
                     first_block = 0;
+                } else {
+                    if (i == 0)
+                        (curr_sblkctx + y_curr_blkidx)->avail = 0;
+                    if (i == 1)
+                        (curr_sblkctx + y_curr_blkidx + 2)->avail = 0;
+                    if (i == 2)
+                        (curr_sblkctx + y_curr_blkidx + 1)->avail = 0;
+                    if (i == 3)
+                        (curr_sblkctx + y_curr_blkidx + 3)->avail = 0;
+                    if (i == 4)
+                        (curr_sblkctx + c_curr_blkidx)->avail = 0;
+                    if (i == 5)
+                        (curr_sblkctx + c_curr_blkidx + 1)->avail = 0;
                 }
             }
         } else { // skipped MB
+            (curr_sblkctx + y_curr_blkidx)->avail = 0;
+            (curr_sblkctx + y_curr_blkidx + 2)->avail = 0;
+            (curr_sblkctx + y_curr_blkidx + 1)->avail = 0;
+            (curr_sblkctx + y_curr_blkidx + 3)->avail = 0;
+            (curr_sblkctx + c_curr_blkidx)->avail = 0;
+            (curr_sblkctx + c_curr_blkidx + 1)->avail = 0;
+
             s->mb_intra                               = 0;
             s->current_picture.qscale_table[mb_pos] = 0;
             for (i = 0; i < 6; i++) {
@@ -2634,47 +3221,85 @@ static int vc1_decode_b_mb_intfr(VC1Context *v)
     return 0;
 }
 
+static inline int vc1_decode_i_mb(VC1IMBCtx *mbctx,
+                                  VC1IntraBlkCtx *blkctx,
+                                  GetBitContext *gb)
+{
+    int cbpcy, acpred;
+    int y_curr_blkidx = mbctx->y_curr_blkidx;
+    int c_curr_blkidx = mbctx->c_curr_blkidx;
+    int first_slice_line = -mbctx->first_slice_line;
+
+    cbpcy = get_vlc2(gb, mbctx->cbpcy_vlc->table, 8, 2); // CBPCY
+    acpred = get_bits1(gb); // ACPRED
+
+    blkctx->component = COMPONENT_LUMA;
+    blkctx->ac_coding_set = &mbctx->ac_coding_set[COMPONENT_LUMA];
+    blkctx->dc_diff_vlc = &(*mbctx->dc_diff_vlc)[COMPONENT_LUMA];
+    blkctx->use_cbpcy_pred = 1;
+    blkctx->use_ac_pred = acpred;
+
+    // decode block Y0
+    blkctx->curr_blkctx = mbctx->curr_sblkctx + y_curr_blkidx;
+    blkctx->top_blkctx = mbctx->top_sblkctx + (y_curr_blkidx + 1 | first_slice_line);
+    blkctx->cbpcy = cbpcy & 0b100000;
+    vc1_decode_i_block(blkctx, gb);
+
+    // decode block Y1
+    blkctx->curr_blkctx += 2;
+    blkctx->top_blkctx += 2 * !first_slice_line;
+    blkctx->block += 2;
+    blkctx->cbpcy = cbpcy & 0b010000;
+    vc1_decode_i_block(blkctx, gb);
+
+    // decode block Y2
+    blkctx->curr_blkctx += -1;
+    blkctx->top_blkctx = blkctx->curr_blkctx - 1;
+    blkctx->block += -1;
+    blkctx->cbpcy = cbpcy & 0b001000;
+    vc1_decode_i_block(blkctx, gb);
+
+    // decode block Y3
+    blkctx->curr_blkctx += 2;
+    blkctx->top_blkctx = blkctx->curr_blkctx - 1;
+    blkctx->block += 2;
+    blkctx->cbpcy = cbpcy & 0b000100;
+    vc1_decode_i_block(blkctx, gb);
+
+    blkctx->component = COMPONENT_CHROMA;
+    blkctx->ac_coding_set = &mbctx->ac_coding_set[COMPONENT_CHROMA];
+    blkctx->dc_diff_vlc = &(*mbctx->dc_diff_vlc)[COMPONENT_CHROMA];
+    blkctx->use_cbpcy_pred = 0;
+
+    // decode block Cb
+    blkctx->curr_blkctx = mbctx->curr_sblkctx + c_curr_blkidx;
+    blkctx->top_blkctx = mbctx->top_sblkctx + (c_curr_blkidx | first_slice_line);
+    blkctx->block += 1;
+    blkctx->cbpcy = cbpcy & 0b000010;
+    vc1_decode_i_block(blkctx, gb);
+
+    // decode block Cr
+    blkctx->curr_blkctx += 1;
+    blkctx->top_blkctx += !first_slice_line;
+    blkctx->block += 1;
+    blkctx->cbpcy = cbpcy & 0b000001;
+    vc1_decode_i_block(blkctx, gb);
+
+    return 0;
+}
+
 /** Decode blocks of I-frame
  */
 static void vc1_decode_i_blocks(VC1Context *v)
 {
-    int k, j;
     MpegEncContext *s = &v->s;
-    int cbp, val;
-    uint8_t *coded_val;
+    VC1IPictCtx *pict = (VC1IPictCtx*)v->pict;
+    VC1IMBCtx *mbctx = (VC1IMBCtx*)&v->mbctx;
+    VC1IntraBlkCtx blkctx;
+    GetBitContext *gb = &v->s.gb;
+    int k, j;
     int mb_pos;
     int default_predictor;
-
-    /* select coding mode used for VLC tables selection */
-    switch (v->y_ac_table_index) {
-    case 0:
-        v->codingset = (v->pqindex <= 8) ? CS_HIGH_RATE_INTRA : CS_LOW_MOT_INTRA;
-        break;
-    case 1:
-        v->codingset = CS_HIGH_MOT_INTRA;
-        break;
-    case 2:
-        v->codingset = CS_MID_RATE_INTRA;
-        break;
-    }
-
-    switch (v->c_ac_table_index) {
-    case 0:
-        v->codingset2 = (v->pqindex <= 8) ? CS_HIGH_RATE_INTER : CS_LOW_MOT_INTER;
-        break;
-    case 1:
-        v->codingset2 = CS_HIGH_MOT_INTER;
-        break;
-    case 2:
-        v->codingset2 = CS_MID_RATE_INTER;
-        break;
-    }
-
-    /* Set DC scale - y and c use the same */
-    s->y_dc_scale = s->y_dc_scale_table[v->pq];
-    s->c_dc_scale = s->c_dc_scale_table[v->pq];
-
-    v->mbctx.dc_step_size = s->y_dc_scale_table[v->pq];
 
     // TODO: move to picture header decoder
     if (v->overlap && v->pq >= 9)
@@ -2682,61 +3307,71 @@ static void vc1_decode_i_blocks(VC1Context *v)
     else
         default_predictor = 1024;
 
-    (v->s_blkctx[1])[v->c_blkidx_start - 1] =
-    (v->s_blkctx[1])[v->c_blkidx_start - 2] =
-    (v->s_blkctx[1])[-1] =
-    (v->s_blkctx[1])[-2] =
-    (v->s_blkctx[1])[-3] =
-    (v->s_blkctx[1])[-4] =
-    (v->s_blkctx[0])[v->c_blkidx_start - 1] =
-    (v->s_blkctx[0])[v->c_blkidx_start - 2] =
-    (v->s_blkctx[0])[-1] =
-    (v->s_blkctx[0])[-2] =
-    (v->s_blkctx[0])[-3] =
-    (v->s_blkctx[0])[-4] =
-        (VC1StoredBlkCtx){ .dc_pred = default_predictor, .avail = 1 };
+    for (k = -4; k; k++) {
+        (v->s_blkctx[0])[k].dc_pred = default_predictor;
+        (v->s_blkctx[0])[k].avail = 1;
+        (v->s_blkctx[1])[k].dc_pred = default_predictor;
+        (v->s_blkctx[1])[k].avail = 1;
+    }
+    for (k = -2; k; k++) {
+        (v->s_blkctx[0])[v->c_blkidx_start + k].dc_pred = default_predictor;
+        (v->s_blkctx[0])[v->c_blkidx_start + k].avail = 1;
+        (v->s_blkctx[1])[v->c_blkidx_start + k].dc_pred = default_predictor;
+        (v->s_blkctx[1])[v->c_blkidx_start + k].avail = 1;
+    }
+
+    blkctx.zz_8x8 = &pict->zz_8x8;
+    blkctx.mquant = ((VC1SimplePictCtx*)v->pict)->pquant;
+    blkctx.double_quant = 2 * blkctx.mquant + pict->halfqp;
+    blkctx.quant_scale = blkctx.mquant * !pict->pquantizer;
+    blkctx.fasttx = ((VC1SimpleSeqCtx*)v->seq)->res_fasttx;
+    blkctx.ac_level_code_size = &pict->ac_level_code_size;
+    blkctx.ac_run_code_size = &pict->ac_run_code_size;
+    blkctx.esc_mode3_vlc = pict->pquant < 8;
 
     //do frame decode
     s->mb_x = s->mb_y = 0;
     s->mb_intra         = 1;
-    s->first_slice_line = v->slicectx.first_line = 1;
+    s->first_slice_line = mbctx->first_slice_line = 1;
     for (s->mb_y = s->start_mb_y; s->mb_y < s->end_mb_y; s->mb_y++) {
         s->mb_x = 0;
         init_block_index(v);
 
-        v->mbctx.mb_x = 0;
+//        v->mbctx.mb_x = 0;
+        mbctx->curr_sblkctx = v->s_blkctx[s->mb_y & 1];
+        mbctx->top_sblkctx = v->s_blkctx[s->mb_y & 1 ^ 1];
+        mbctx->y_curr_blkidx = 0;
+        mbctx->c_curr_blkidx = v->c_blkidx_start;
         for (; s->mb_x < v->end_mb_x; s->mb_x++) {
             ff_update_block_index(s);
             s->bdsp.clear_blocks(v->block[v->cur_blk_idx][0]);
             mb_pos = s->mb_x + s->mb_y * s->mb_width;
             s->current_picture.mb_type[mb_pos]                     = MB_TYPE_INTRA;
-            s->current_picture.qscale_table[mb_pos]                = v->pq;
+//            s->current_picture.qscale_table[mb_pos]                = v->pq;
             for (int i = 0; i < 4; i++) {
                 s->current_picture.motion_val[1][s->block_index[i]][0] = 0;
                 s->current_picture.motion_val[1][s->block_index[i]][1] = 0;
             }
 
             // do actual MB decoding and displaying
-            cbp = get_vlc2(&v->s.gb, ff_msmp4_mb_i_vlc.table, MB_INTRA_VLC_BITS, 2);
-            v->s.ac_pred = get_bits1(&v->s.gb);
+            v->mb_type[0][s->block_index[0]] = 1;
+            v->mb_type[0][s->block_index[1]] = 1;
+            v->mb_type[0][s->block_index[2]] = 1;
+            v->mb_type[0][s->block_index[3]] = 1;
+            v->mb_type[0][s->block_index[4]] = 1;
+            v->mb_type[0][s->block_index[5]] = 1;
 
-            for (k = 0; k < 6; k++) {
-                v->mb_type[0][s->block_index[k]] = 1;
+            blkctx.block = &v->block[v->cur_blk_idx][0];
+            vc1_decode_i_mb(mbctx, &blkctx, gb);
 
-                val = ((cbp >> (5 - k)) & 1);
+            v->vc1dsp.vc1_inv_trans_8x8(v->block[v->cur_blk_idx][0]);
+            v->vc1dsp.vc1_inv_trans_8x8(v->block[v->cur_blk_idx][1]);
+            v->vc1dsp.vc1_inv_trans_8x8(v->block[v->cur_blk_idx][2]);
+            v->vc1dsp.vc1_inv_trans_8x8(v->block[v->cur_blk_idx][3]);
 
-                if (k < 4) {
-                    int pred   = vc1_coded_block_pred(&v->s, k, &coded_val);
-                    val        = val ^ pred;
-                    *coded_val = val;
-                }
-                cbp |= val << (5 - k);
-
-                vc1_decode_i_block(v, v->block[v->cur_blk_idx][block_map[k]], k, val, (k < 4) ? v->codingset : v->codingset2);
-
-                if (CONFIG_GRAY && k > 3 && (s->avctx->flags & AV_CODEC_FLAG_GRAY))
-                    continue;
-                v->vc1dsp.vc1_inv_trans_8x8(v->block[v->cur_blk_idx][block_map[k]]);
+            if (!CONFIG_GRAY || !(v->avctx->flags & AV_CODEC_FLAG_GRAY)) {
+                v->vc1dsp.vc1_inv_trans_8x8(v->block[v->cur_blk_idx][4]);
+                v->vc1dsp.vc1_inv_trans_8x8(v->block[v->cur_blk_idx][5]);
             }
 
             if (v->overlap && v->pq >= 9) {
@@ -2757,10 +3392,10 @@ static void vc1_decode_i_blocks(VC1Context *v)
             if (v->s.loop_filter)
                 ff_vc1_i_loop_filter(v);
 
-            if (get_bits_left(&s->gb) < 0) {
+            if (get_bits_left(gb) < 0) {
                 ff_er_add_slice(&s->er, 0, 0, s->mb_x, s->mb_y, ER_MB_ERROR);
                 av_log(s->avctx, AV_LOG_ERROR, "Bits overconsumption: %i > %i\n",
-                       get_bits_count(&s->gb), s->gb.size_in_bits);
+                       get_bits_count(gb), gb->size_in_bits);
                 return;
             }
 
@@ -2769,14 +3404,16 @@ static void vc1_decode_i_blocks(VC1Context *v)
             v->left_blk_idx = (v->left_blk_idx + 1) % (v->end_mb_x + 2);
             v->cur_blk_idx = (v->cur_blk_idx + 1) % (v->end_mb_x + 2);
 
-            v->mbctx.mb_x++;
+//            v->mbctx.mb_x++;
+            mbctx->y_curr_blkidx += 4;
+            mbctx->c_curr_blkidx += 2;
         }
         if (!v->s.loop_filter)
             ff_mpeg_draw_horiz_band(s, s->mb_y * 16, 16);
         else if (s->mb_y)
             ff_mpeg_draw_horiz_band(s, (s->mb_y - 1) * 16, 16);
 
-        s->first_slice_line = v->slicectx.first_line = 0;
+        s->first_slice_line = mbctx->first_slice_line = 0;
     }
     if (v->s.loop_filter)
         ff_mpeg_draw_horiz_band(s, (s->end_mb_y - 1) * 16, 16);
@@ -2929,7 +3566,12 @@ static int vc1_decode_i_blocks_adv(VC1Context *v)
 static void vc1_decode_p_blocks(VC1Context *v)
 {
     MpegEncContext *s = &v->s;
+    GetBitContext *gb = &s->gb;
+    VC1PPictCtx *pict = (VC1PPictCtx*)v->pict;
+    VC1PMBCtx *mbctx = (VC1PMBCtx*)&v->mbctx;
+    VC1IntraBlkCtx intra_blkctx;
     int apply_loop_filter;
+    int k;
 
     /* select coding mode used for VLC tables selection */
     switch (v->c_ac_table_index) {
@@ -2956,12 +3598,33 @@ static void vc1_decode_p_blocks(VC1Context *v)
         break;
     }
 
+    for (k = -4; k; k++) {
+        (v->s_blkctx[0])[k].avail = 0;
+        (v->s_blkctx[1])[k].avail = 0;
+    }
+    for (k = -2; k; k++) {
+        (v->s_blkctx[0])[v->c_blkidx_start + k].avail = 0;
+        (v->s_blkctx[1])[v->c_blkidx_start + k].avail = 0;
+    }
+
+    intra_blkctx.zz_8x8 = &pict->zz_8x8;
+    intra_blkctx.fasttx = ((VC1SimpleSeqCtx*)v->seq)->res_fasttx;
+    intra_blkctx.ac_level_code_size = &pict->ac_level_code_size;
+    intra_blkctx.ac_run_code_size = &pict->ac_run_code_size;
+    intra_blkctx.esc_mode3_vlc = pict->pquant < 8 || pict->dquant_inframe;
+    intra_blkctx.use_cbpcy_pred = 0;
+
     apply_loop_filter   = s->loop_filter && !(s->avctx->skip_loop_filter >= AVDISCARD_NONKEY);
-    s->first_slice_line = 1;
+    s->first_slice_line = v->slicectx.first_line = mbctx->first_slice_line = 1;
     memset(v->cbp_base, 0, sizeof(v->cbp_base[0]) * 3 * s->mb_stride);
     for (s->mb_y = s->start_mb_y; s->mb_y < s->end_mb_y; s->mb_y++) {
         s->mb_x = 0;
         init_block_index(v);
+
+        mbctx->curr_sblkctx = v->s_blkctx[s->mb_y & 1];
+        mbctx->top_sblkctx = v->s_blkctx[s->mb_y & 1 ^ 1];
+        mbctx->y_curr_blkidx = 0;
+        mbctx->c_curr_blkidx = v->c_blkidx_start;
         for (; s->mb_x < s->mb_width; s->mb_x++) {
             ff_update_block_index(s);
 
@@ -2974,7 +3637,7 @@ static void vc1_decode_p_blocks(VC1Context *v)
                 if (apply_loop_filter)
                     ff_vc1_p_intfr_loop_filter(v);
             } else {
-                vc1_decode_p_mb(v);
+                vc1_decode_p_mb(v, mbctx, &intra_blkctx, gb);
                 if (apply_loop_filter)
                     ff_vc1_p_loop_filter(v);
             }
@@ -2989,6 +3652,9 @@ static void vc1_decode_p_blocks(VC1Context *v)
             inc_blk_idx(v->top_blk_idx);
             inc_blk_idx(v->left_blk_idx);
             inc_blk_idx(v->cur_blk_idx);
+
+            mbctx->y_curr_blkidx += 4;
+            mbctx->c_curr_blkidx += 2;
         }
         memmove(v->cbp_base,
                 v->cbp - s->mb_stride,
@@ -3004,7 +3670,7 @@ static void vc1_decode_p_blocks(VC1Context *v)
                 sizeof(v->luma_mv_base[0]) * 2 * s->mb_stride);
         if (s->mb_y != s->start_mb_y)
             ff_mpeg_draw_horiz_band(s, (s->mb_y - 1) * 16, 16);
-        s->first_slice_line = 0;
+        s->first_slice_line = v->slicectx.first_line = mbctx->first_slice_line = 0;
     }
     if (s->end_mb_y >= s->start_mb_y)
         ff_mpeg_draw_horiz_band(s, (s->end_mb_y - 1) * 16, 16);

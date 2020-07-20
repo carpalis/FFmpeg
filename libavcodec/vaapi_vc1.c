@@ -27,7 +27,7 @@
 #include "vc1data.h"
 
 /** Translate FFmpeg MV modes to VA API */
-static int get_VAMvModeVC1(enum MVModes mv_mode)
+static int get_VAMvModeVC1(enum MVMode mv_mode)
 {
     switch (mv_mode) {
     case MV_PMODE_1MV_HPEL_BILIN: return VAMvMode1MvHalfPelBilinear;

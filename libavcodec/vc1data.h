@@ -33,6 +33,7 @@
 #include "libavutil/rational.h"
 
 #include "vlc.h"
+#include "vc1.h"
 
 /** Table for conversion between TTBLK and TTMB */
 extern const int ff_vc1_ttblk_to_tt[3][8];
@@ -42,9 +43,6 @@ extern const int ff_vc1_ttfrm_to_tt[4];
 /** MV P mode - the 5th element is only used for mode 1 */
 extern const uint8_t ff_vc1_mv_pmode_table[2][5];
 extern const uint8_t ff_vc1_mv_pmode_table2[2][4];
-
-extern const int ff_vc1_fps_nr[7], ff_vc1_fps_dr[2];
-extern const uint8_t ff_vc1_pquant_table[3][32];
 
 /* MBMODE table for interlaced frame P-picture */
 extern const uint8_t ff_vc1_mbmode_intfrp[2][15][4];
@@ -102,9 +100,6 @@ extern VLC ff_vc1_ac_coeff_table[8];
 extern const int16_t ff_vc1_bfraction_lut[23];
 extern const uint8_t ff_vc1_bfraction_bits[23];
 extern const uint8_t ff_vc1_bfraction_codes[23];
-
-//Same as H.264
-extern const AVRational ff_vc1_sample_aspect[14];
 
 /* BitPlane IMODE - such a small table... */
 extern const uint8_t ff_vc1_imode_codes[7];
@@ -193,8 +188,156 @@ extern const uint8_t ff_vc1_adv_interlaced_4x4_zz [16];
 extern const uint8_t ff_vc1_intra_horz_8x8_zz [64];
 extern const uint8_t ff_vc1_intra_vert_8x8_zz [64];
 
-/* DQScale as specified in 8.1.3.9 - almost identical to 0x40000/i */
+/* ASPECT_RATIO to Sample Aspect Ratio (Table 7) as specified in 6.1.14.3.1 */
+extern const AVRational ff_vc1_sample_aspect_ratio[14];
+
+/* FRAMERATENR to Frame Rate Numerator (Table 8) as specified in 6.1.14.4.2 */
+extern const uint8_t ff_vc1_fps_num[7];
+
+/* FRAMERATEDR to Frame Rate Denominator (Table 9) as specified in 6.1.14.4.3 */
+extern const uint16_t ff_vc1_fps_den[2];
+
+/* PQINDEX to PQUANT (Table 36) as specified in 7.1.1.6 */
+extern const uint8_t ff_vc1_pquant_table[32];
+
+/* MVMODE (Tables 46 & 47) as specified in 7.1.1.32 */
+extern const uint8_t ff_vc1_mvmode_table[2][5];
+
+/* MVMODE2 (Tables 49 & 50) as specified in 7.1.1.33 */
+extern const uint8_t ff_vc1_mvmode2_table[2][4];
+
+/* MQUANT to DCStepSize as specified in 8.1.3.3 */
+extern const uint8_t ff_vc1_dc_scale_table[32];
+
+/* AC Coding Sets (Tables 71 & 72) as specified in 8.1.3.4
+ * VC1ACCodingSet ff_vc1_ac_coding_set[CodingSet][PictureComponent]
+ */
+extern const VC1ACCodingSet ff_vc1_ac_coding_set[CS_MAX][COMPONENT_MAX];
+
+/* DQScale (Table 74) as specified in 8.1.3.9 */
 extern const int32_t ff_vc1_dqscale[64];
+
+/* I-Picture CBPCY VLC Table (Table 168)
+ * as specified in 11.5
+ */
+extern const uint16_t ff_vc1_i_cbpcy_codes[64];
+extern const uint8_t ff_vc1_i_cbpcy_bits[64];
+
+/* P and B-Picture CBPCY VLC Table 0 (Table 169)
+ * as specified in 11.6
+ */
+extern const uint8_t ff_vc1_p_cbpcy_0_codes[64];
+extern const uint8_t ff_vc1_p_cbpcy_0_bits[64];
+
+/* P and B-Picture CBPCY VLC Table 1 (Table 170)
+ * as specified in 11.6
+ */
+extern const uint8_t ff_vc1_p_cbpcy_1_codes[64];
+extern const uint8_t ff_vc1_p_cbpcy_1_bits[64];
+
+/* P and B-Picture CBPCY VLC Table 2 (Table 171)
+ * as specified in 11.6
+ */
+extern const uint16_t ff_vc1_p_cbpcy_2_codes[64];
+extern const uint8_t ff_vc1_p_cbpcy_2_bits[64];
+
+/* P and B-Picture CBPCY VLC Table 3 (Table 172)
+ * as specified in 11.6
+ */
+extern const uint8_t ff_vc1_p_cbpcy_3_codes[64];
+extern const uint8_t ff_vc1_p_cbpcy_3_bits[64];
+
+/* Low-motion Luma DC Differential VLC Table (Table 173)
+ * as specified in 11.7.1$
+ */
+extern const uint32_t ff_vc1_low_motion_luma_dc_codes[120];
+extern const uint8_t ff_vc1_low_motion_luma_dc_bits[120];
+
+/* Low-motion Color-difference DC Differential VLC Table (Table 174)
+ * as specified in 11.7.1$
+ */
+extern const uint32_t ff_vc1_low_motion_chroma_dc_codes[120];
+extern const uint8_t ff_vc1_low_motion_chroma_dc_bits[120];
+
+/* High-motion Luma DC Differential VLC Table (Table 175)
+ * as specified in 11.7.2$
+ */
+extern const uint32_t ff_vc1_high_motion_luma_dc_codes[120];
+extern const uint8_t ff_vc1_high_motion_luma_dc_bits[120];
+
+/* High-motion Color-difference DC Differential VLC Table (Table 176)
+ * as specified in 11.7.2$
+ */
+extern const uint32_t ff_vc1_high_motion_chroma_dc_codes[120];
+extern const uint8_t ff_vc1_high_motion_chroma_dc_bits[120];
+
+/* High-motion Intra VLC Table (Table 177)
+ * as specified in 11.8.1
+ */
+extern const uint16_t ff_vc1_high_motion_intra_index_codes[186];
+extern const uint8_t ff_vc1_high_motion_intra_index_bits[186];
+
+/* High-motion Inter VLC Table (Table 184)
+ * as specified in 11.8.1
+ */
+extern const uint16_t ff_vc1_high_motion_inter_index_codes[169];
+extern const uint8_t ff_vc1_high_motion_inter_index_bits[169];
+
+/* Low-motion Intra VLC Table (Table 191)
+ * as specified in 11.8.2
+ */
+extern const uint16_t ff_vc1_low_motion_intra_index_codes[133];
+extern const uint8_t ff_vc1_low_motion_intra_index_bits[133];
+
+/* Low-motion Inter VLC Table (Table 198)
+ * as specified in 11.8.3
+ */
+extern const uint16_t ff_vc1_low_motion_inter_index_codes[149];
+extern const uint8_t ff_vc1_low_motion_inter_index_bits[149];
+
+/* Mid Rate Intra VLC Table (Table 205)
+ * as specified in 11.8.4
+ */
+extern const uint8_t ff_vc1_mid_rate_intra_index_codes[103];
+extern const uint8_t ff_vc1_mid_rate_intra_index_bits[103];
+
+/* Mid Rate Inter VLC Table (Table 212)
+ * as specified in 11.8.5
+ */
+extern const uint8_t ff_vc1_mid_rate_inter_index_codes[103];
+extern const uint8_t ff_vc1_mid_rate_inter_index_bits[103];
+
+/* High Rate Intra VLC Table (Table 219)
+ * as specified in 11.8.6
+ */
+extern const uint16_t ff_vc1_high_rate_intra_index_codes[163];
+extern const uint8_t ff_vc1_high_rate_intra_index_bits[163];
+
+/* High Rate Inter VLC Table (Table 226)
+ * as specified in 11.8.7
+ */
+extern const uint32_t ff_vc1_high_rate_inter_index_codes[175];
+extern const uint8_t ff_vc1_high_rate_inter_index_bits[175];
+
+/* Intra Normal Scan Zigzag Table (Table 233)
+ * as specified in 11.9.1 (transposed)
+ */
+extern const uint8_t ff_vc1_intra_8x8_normal_scan_zz_table[64];
+
+/* Intra Horizontal Scan Zigzag Table (Table 234)
+ * as specified in 11.9.1 (transposed)
+ */
+extern const uint8_t ff_vc1_intra_8x8_horiz_scan_zz_table[64];
+
+/* Intra Vertical Scan Zigzag Table (Table 235)
+ * as specified in 11.9.1 (transposed)
+ */
+extern const uint8_t ff_vc1_intra_8x8_vert_scan_zz_table[64];
+
+/* Inter 8x8 Scan Zigzag Table (Table 236)
+ * as specified in 11.9.2 (transposed)
+ */
+extern const uint8_t ff_vc1_inter_8x8_scan_zz_table[64];
 
 /* P Interlaced field picture MV predictor scaling values (Table 114) */
 extern const uint16_t ff_vc1_field_mvpred_scales[2][7][4];

@@ -321,7 +321,7 @@ static void vc1_sprite_flush(AVCodecContext *avctx)
 
 #endif
 
-static av_cold int vc1_init_blk_context(VC1Context *v)
+static av_cold int vc1_init_stored_blk_ctx(VC1Context *v)
 {
     MpegEncContext *s = &v->s;
 
@@ -334,6 +334,24 @@ static av_cold int vc1_init_blk_context(VC1Context *v)
     v->s_blkctx[1] = v->s_blkctx_base + (s->mb_width + 1) * 6 + 4;
     v->c_blkidx_start = s->mb_width * 4 + 2;
 
+    (v->s_blkctx[1])[v->c_blkidx_start - 1] =
+    (v->s_blkctx[1])[v->c_blkidx_start - 2] =
+    (v->s_blkctx[1])[-1] =
+    (v->s_blkctx[1])[-2] =
+    (v->s_blkctx[1])[-3] =
+    (v->s_blkctx[1])[-4] =
+    (v->s_blkctx[0])[v->c_blkidx_start - 1] =
+    (v->s_blkctx[0])[v->c_blkidx_start - 2] =
+    (v->s_blkctx[0])[-1] =
+    (v->s_blkctx[0])[-2] =
+    (v->s_blkctx[0])[-3] =
+    (v->s_blkctx[0])[-4] =
+        (VC1StoredBlkCtx){
+            .ac_pred_top = { 0 },
+            .ac_pred_left = { 0 },
+            .coded = 0
+        };
+
     return 0;
 }
 
@@ -343,7 +361,7 @@ av_cold int ff_vc1_decode_init_alloc_tables(VC1Context *v)
     int i, ret = AVERROR(ENOMEM);
     int mb_height = FFALIGN(s->mb_height, 2);
 
-    ret = vc1_init_blk_context(v);
+    ret = vc1_init_stored_blk_ctx(v);
     if (ret < 0)
         return ret;
 
@@ -659,7 +677,28 @@ av_cold int ff_vc1_decode_end(AVCodecContext *avctx)
     ff_intrax8_common_end(&v->x8);
 
     av_freep(&v->seq);
+    av_freep(&v->pict);
     av_freep(&v->s_blkctx_base);
+
+    ff_free_vlc(&v->new_cbpcy_vlc[0]);
+    ff_free_vlc(&v->new_cbpcy_vlc[1]);
+    ff_free_vlc(&v->new_cbpcy_vlc[2]);
+    ff_free_vlc(&v->new_cbpcy_vlc[3]);
+    ff_free_vlc(&v->new_cbpcy_vlc[4]);
+
+    ff_free_vlc(&v->dc_diff_vlc[0][COMPONENT_LUMA]);
+    ff_free_vlc(&v->dc_diff_vlc[0][COMPONENT_CHROMA]);
+    ff_free_vlc(&v->dc_diff_vlc[1][COMPONENT_LUMA]);
+    ff_free_vlc(&v->dc_diff_vlc[1][COMPONENT_CHROMA]);
+
+    ff_free_vlc(&v->ac_coding_vlc[CS_HIGH_RATE][COMPONENT_LUMA]);
+    ff_free_vlc(&v->ac_coding_vlc[CS_HIGH_RATE][COMPONENT_CHROMA]);
+    ff_free_vlc(&v->ac_coding_vlc[CS_LOW_MOTION][COMPONENT_LUMA]);
+    ff_free_vlc(&v->ac_coding_vlc[CS_LOW_MOTION][COMPONENT_CHROMA]);
+    ff_free_vlc(&v->ac_coding_vlc[CS_HIGH_MOTION][COMPONENT_LUMA]);
+    ff_free_vlc(&v->ac_coding_vlc[CS_HIGH_MOTION][COMPONENT_CHROMA]);
+    ff_free_vlc(&v->ac_coding_vlc[CS_MID_RATE][COMPONENT_LUMA]);
+    ff_free_vlc(&v->ac_coding_vlc[CS_MID_RATE][COMPONENT_CHROMA]);
 
     return 0;
 }
@@ -874,15 +913,20 @@ static int vc1_decode_frame(AVCodecContext *avctx, void *data,
     // do parse frame header
     v->pic_header_flag = 0;
     v->first_pic_header_flag = 1;
-    if (v->seq->profile < PROFILE_ADVANCED) {
-        if ((ret = ff_vc1_parse_frame_header(v, &s->gb)) < 0) {
-            goto err;
-        }
-    } else {
-        if ((ret = ff_vc1_parse_frame_header_adv(v, &s->gb)) < 0) {
-            goto err;
-        }
-    }
+    ret = v->seq->decode_picture_header(v, &s->gb);
+    if (ret < 0)
+        return AVERROR_INVALIDDATA;
+//    v->pict->init(v);
+//    if (v->seq->profile < PROFILE_ADVANCED) {
+//        if ((ret = ff_vc1_decode_picture_header(v, &s->gb)) < 0) {
+//            goto err;
+//        }
+//        v->pict->init(v);
+//    } else {
+//        if ((ret = ff_vc1_parse_frame_header_adv(v, &s->gb)) < 0) {
+//            goto err;
+//        }
+//    }
     v->first_pic_header_flag = 0;
 
     if (avctx->debug & FF_DEBUG_PICT_INFO)

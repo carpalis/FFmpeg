@@ -78,7 +78,7 @@ static void vc1_extract_header(AVCodecParserContext *s, AVCodecContext *avctx,
         break;
     case VC1_CODE_FRAME & 0xFF:
         if(vpc->v.seq->profile < PROFILE_ADVANCED)
-            ret = ff_vc1_parse_frame_header    (&vpc->v, &gb);
+            ret = ff_vc1_decode_picture_header(&vpc->v, &gb);
         else
             ret = ff_vc1_parse_frame_header_adv(&vpc->v, &gb);
 
@@ -293,6 +293,7 @@ static void vc1_parse_close(AVCodecParserContext *s)
     VC1ParseContext *vpc = s->priv_data;
 
     av_freep(&vpc->v.seq);
+    av_freep(&vpc->v.pict);
     av_freep(&pc->buffer);
 }
 

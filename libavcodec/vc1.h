@@ -59,18 +59,19 @@ enum PredictionDirection {
     PRED_DIR_LEFT
 };
 
-//enum PictureComponent {
-//    COMPONENT_LUMA,
-//    COMPONENT_CHROMA
-//};
+enum PictureComponent {
+    COMPONENT_LUMA,
+    COMPONENT_CHROMA,
+    COMPONENT_MAX
+};
 
-/** Sequence quantizer mode */
+/** Quantizer Specifier */
 //@{
-enum QuantMode {
-    QUANT_FRAME_IMPLICIT,    ///< Implicitly specified at frame level
-    QUANT_FRAME_EXPLICIT,    ///< Explicitly specified at frame level
-    QUANT_NON_UNIFORM,       ///< Non-uniform quant used for all frames
-    QUANT_UNIFORM            ///< Uniform quant used for all frames
+enum Quantizer {
+    QUANTIZER_IMPLICIT,    // frame level implicit
+    QUANTIZER_EXPLICIT,    // frame level explicit
+    QUANTIZER_NON_UNIFORM, // non-uniform for all frames
+    QUANTIZER_UNIFORM      // uniform for all frames
 };
 //@}
 
@@ -107,12 +108,17 @@ enum DQDoubleEdge {
 
 /** MV modes for P-frames */
 //@{
-enum MVModes {
+enum MVMode {
     MV_PMODE_1MV_HPEL_BILIN,
     MV_PMODE_1MV,
     MV_PMODE_1MV_HPEL,
     MV_PMODE_MIXED_MV,
-    MV_PMODE_INTENSITY_COMP
+    MV_PMODE_INTENSITY_COMP,
+    MV_MODE_1MV_HPEL_BILIN = 0,
+    MV_MODE_1MV,
+    MV_MODE_1MV_HPEL,
+    MV_MODE_MIXED_MV,
+    MV_MODE_INTENSITY_COMP
 };
 //@}
 
@@ -153,14 +159,19 @@ enum TransformTypes {
 //@}
 
 enum CodingSet {
-    CS_HIGH_MOT_INTRA = 0,
+    CS_HIGH_MOT_INTRA,
     CS_HIGH_MOT_INTER,
     CS_LOW_MOT_INTRA,
     CS_LOW_MOT_INTER,
     CS_MID_RATE_INTRA,
     CS_MID_RATE_INTER,
     CS_HIGH_RATE_INTRA,
-    CS_HIGH_RATE_INTER
+    CS_HIGH_RATE_INTER,
+    CS_HIGH_RATE = 0,
+    CS_LOW_MOTION,
+    CS_HIGH_MOTION,
+    CS_MID_RATE,
+    CS_MAX
 };
 
 /** @name Overlap conditions for Advanced Profile */
@@ -198,9 +209,20 @@ enum Imode {
 };
 /** @} */ //imode defines
 
+typedef struct VC1ACCodingSet {
+    VLC *index_vlc;
+    uint8_t (*run_level_table)[2];
+    uint8_t *delta_level_table;
+    uint8_t *delta_run_table;
+    uint8_t start_index_of_last;
+    uint8_t escape_index;
+    uint8_t delta_level_idx_of_last;
+    uint8_t delta_run_idx_of_last;
+    uint8_t max_depth;
+} VC1ACCodingSet;
+
 #define VC1SeqCtx_PROFILE \
     uint8_t profile; \
-    void (*init)(VC1Context*); \
     ;
 
 #define VC1SeqCtx_COMMON \
@@ -212,9 +234,12 @@ enum Imode {
     uint8_t res_x8; \
     uint8_t multires; \
     uint8_t res_fasttx; \
+    uint8_t extended_mv; \
     uint8_t vstransform; \
     uint8_t res_transtab; \
     uint8_t overlap; \
+    uint8_t rangered; \
+    uint8_t maxbframes; \
     uint8_t quantizer; \
     uint8_t finterpflag; \
     uint8_t res_rtm_flag; \
@@ -226,30 +251,35 @@ typedef struct VC1SeqCtx VC1SeqCtx;
 
 struct VC1SeqCtx {
     VC1SeqCtx_PROFILE;
+    void (*init)(VC1Context*);
+    int (*decode_picture_header)(VC1Context*, GetBitContext*); \
 };
 
 typedef struct VC1SimpleSeqCtx {
     VC1SeqCtx_PROFILE;
+    void (*init)(VC1Context*);
+    int (*decode_picture_header)(VC1Context*, GetBitContext*); \
     VC1SeqCtx_COMMON;
 } VC1SimpleSeqCtx;
 
 typedef struct VC1MainSeqCtx {
     VC1SeqCtx_PROFILE;
+    void (*init)(VC1Context*);
+    int (*decode_picture_header)(VC1Context*, GetBitContext*); \
     VC1SeqCtx_COMMON;
 
     uint8_t loopfilter;
     uint8_t fastuvmc;
-    uint8_t extended_mv;
     uint8_t dquant;
     uint8_t syncmarker;
-    uint8_t rangered;
-    uint8_t maxbframes;
 } VC1MainSeqCtx;
 
 typedef struct VC1MainSeqCtx VC1ComplexSeqCtx;
 
 typedef struct VC1AdvSeqCtx {
     VC1SeqCtx_PROFILE;
+    void (*init)(VC1Context*);
+    int (*decode_picture_header)(VC1Context*, GetBitContext*); \
     uint8_t level;
     uint8_t frmrtq_postproc;
     uint8_t bitrtq_postproc;
@@ -277,25 +307,168 @@ typedef struct VC1SliceCtx {
     uint8_t first_line;
 } VC1SliceCtx;
 
+#define VC1PictCtx_COMMON \
+    uint8_t ptype; \
+    int (*decode_header)(VC1Context*, GetBitContext*); \
+    ;
+typedef struct VC1PictCtx {
+    VC1PictCtx_COMMON
+} VC1PictCtx;
+
+#define VC1SimplePictCtx_COMMON \
+    uint8_t interpfrm; \
+    uint8_t rangeredfrm; \
+    uint8_t bfraction; \
+    uint8_t pqindex; \
+    uint8_t halfqp; \
+    uint8_t pquantizer; \
+    uint8_t mvrange; \
+    uint8_t cbptab; \
+    uint8_t transacfrm; \
+    uint8_t transacfrm2; \
+    uint8_t transdctab; \
+    \
+    uint8_t pquant; \
+    uint8_t dquant_inframe; \
+    uint8_t (*zz_8x8[3])[64]; \
+    uint8_t ac_level_code_size; \
+    uint8_t ac_run_code_size; \
+    ;
+
+typedef struct VC1SimplePictCtx {
+    VC1PictCtx_COMMON
+    VC1SimplePictCtx_COMMON
+} VC1SimplePictCtx;
+
+typedef struct VC1IPictCtx {
+    VC1PictCtx_COMMON
+    VC1SimplePictCtx_COMMON
+
+//    uint8_t transacfrm; // 0 = index 0 & pqindex <= 8
+                          // 1 = index 0 & pqindex > 8
+                          // 2 = index 1
+                          // 3 = index 2
+    uint8_t respic;
+} VC1IPictCtx;
+
+typedef struct VC1BIPictCtx {
+    VC1PictCtx_COMMON
+    VC1SimplePictCtx_COMMON
+
+//    uint8_t transacfrm; // 0 = index 0 & pqindex <= 8
+                          // 1 = index 0 & pqindex > 8
+                          // 2 = index 1
+                          // 3 = index 2
+} VC1BIPictCtx;
+
+typedef struct VC1PPictCtx {
+    VC1PictCtx_COMMON
+    VC1SimplePictCtx_COMMON
+
+    uint8_t respic;
+    uint8_t mvmode;
+    uint8_t mvmode2;
+    int8_t lumscale;
+    int8_t lumshift;
+    uint8_t dquantfrm;
+} VC1PPictCtx;
+
+typedef struct VC1BPictCtx {
+    VC1PictCtx_COMMON
+    VC1SimplePictCtx_COMMON
+
+    uint8_t mvmode;
+    uint8_t dquantfrm;
+} VC1BPictCtx;
+
+typedef struct VC1AdvPictCtx {
+    VC1PictCtx_COMMON
+    VC1SimplePictCtx_COMMON
+} VC1AdvPictCtx;
+
 typedef struct VC1StoredBlkCtx {
     int16_t dc_pred;
+    int16_t ac_pred_top[7];
+    int16_t ac_pred_left[7];
     uint8_t avail;
-//    int16_t ac_pred_top[7];
-//    int16_t ac_pred_left[7];
+    uint8_t coded;
 } VC1StoredBlkCtx;
 
 typedef struct VC1StoredMBCtx {
 } VC1StoredMBCtx;
 
-typedef struct VC1MBCtx VC1MBCtx;
+#define VC1BlkCtx_COMMON \
+    VC1StoredBlkCtx *curr_blkctx; \
+    VC1StoredBlkCtx *top_blkctx; \
+    VC1ACCodingSet *ac_coding_set; \
+    int16_t (*block)[64]; \
+    uint8_t (*zz)[64]; \
+    uint8_t *ac_level_code_size; \
+    uint8_t *ac_run_code_size; \
+    uint8_t component; \
+    uint8_t cbpcy; \
+    uint8_t use_ac_pred; \
+    uint8_t esc_mode3_vlc; \
+    ;
 
 typedef struct VC1BlkCtx {
+    VC1BlkCtx_COMMON;
 } VC1BlkCtx;
 
-struct VC1MBCtx {
-    uint16_t mb_x;
-    uint8_t dc_step_size;
-};
+typedef struct VC1IntraBlkCtx {
+    VC1BlkCtx_COMMON;
+
+    uint8_t (*(*zz_8x8)[3])[64];
+    VLC *dc_diff_vlc;
+    uint8_t mquant;
+    uint8_t halfqp;
+    int8_t double_quant;
+    int8_t quant_scale;
+    uint8_t fasttx;
+    uint8_t pred_dir;
+    uint8_t pred_blk_sh;
+    uint8_t use_cbpcy_pred;
+} VC1IntraBlkCtx;
+
+typedef struct VC1MBCtx {
+    VLC (*dc_diff_vlc)[COMPONENT_MAX];
+    VC1ACCodingSet ac_coding_set[COMPONENT_MAX];
+    VLC *cbpcy_vlc;
+
+    uint8_t cbpcy;
+    uint8_t acpred;
+
+    uint8_t mquant;
+    VC1StoredBlkCtx *curr_sblkctx, *top_sblkctx;
+    uint16_t y_curr_blkidx;
+    uint16_t c_curr_blkidx;
+    uint8_t first_slice_line;
+} VC1MBCtx;
+
+typedef struct VC1IMBCtx {
+    VLC (*dc_diff_vlc)[COMPONENT_MAX];
+    VC1ACCodingSet ac_coding_set[COMPONENT_MAX];
+    VLC *cbpcy_vlc;
+
+    VC1StoredBlkCtx *curr_sblkctx, *top_sblkctx;
+    uint16_t y_curr_blkidx;
+    uint16_t c_curr_blkidx;
+    uint8_t first_slice_line;
+} VC1IMBCtx;
+
+typedef struct VC1PMBCtx {
+    VLC (*dc_diff_vlc)[COMPONENT_MAX];
+    VC1ACCodingSet ac_coding_set[COMPONENT_MAX];
+    VLC *cbpcy_vlc;
+
+    uint8_t acpred;
+
+    uint8_t mquant;
+    VC1StoredBlkCtx *curr_sblkctx, *top_sblkctx;
+    uint16_t y_curr_blkidx;
+    uint16_t c_curr_blkidx;
+    uint8_t first_slice_line;
+} VC1PMBCtx;
 
 /** The VC1 Context
  * @todo Change size wherever another size is more efficient
@@ -313,10 +486,21 @@ struct VC1Context{
 
     VC1SliceCtx slicectx;
 
+    VC1PictCtx *pict;
+
     VC1MBCtx mbctx;
 
     VC1StoredBlkCtx *s_blkctx_base, *s_blkctx[2];
     int16_t c_blkidx_start;
+
+    // VLC cbpcy_vlc[CBPTAB]
+    VLC new_cbpcy_vlc[5];
+
+    // VLC dc_differential_vlc[TRANSDCTAB][PictureComponent]
+    VLC dc_diff_vlc[2][COMPONENT_MAX];
+
+    // VLC ac_coding_vlc[CodingSet][PictureComponent];
+    VLC ac_coding_vlc[CS_MAX][COMPONENT_MAX];
 
     /** Simple/Main Profile sequence header */
     //@{
@@ -553,10 +737,10 @@ int ff_vc1_decode_sequence_header(VC1Context *v, GetBitContext *gb);
 
 int ff_vc1_decode_entry_point(AVCodecContext *avctx, VC1Context *v, GetBitContext *gb);
 
-int ff_vc1_parse_frame_header    (VC1Context *v, GetBitContext *gb);
+int ff_vc1_decode_picture_header(VC1Context *v, GetBitContext *gb);
 int ff_vc1_parse_frame_header_adv(VC1Context *v, GetBitContext *gb);
 int ff_vc1_init_common(VC1Context *v);
-int ff_vc1_new_sequence_context(unsigned int profile, VC1SeqCtx **seq);
+int ff_vc1_new_sequence_context(VC1Context *v, int profile);
 
 int  ff_vc1_decode_init_alloc_tables(VC1Context *v);
 void ff_vc1_init_transposed_scantables(VC1Context *v);
