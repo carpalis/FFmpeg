@@ -207,7 +207,7 @@ extern const uint8_t ff_vc1_mvmode_table[2][5];
 extern const uint8_t ff_vc1_mvmode2_table[2][4];
 
 /* MQUANT to DCStepSize as specified in 8.1.3.3 */
-extern const uint8_t ff_vc1_dc_scale_table[32];
+extern const int8_t ff_vc1_dc_scale_table[32];
 
 /* AC Coding Sets (Tables 71 & 72) as specified in 8.1.3.4
  * VC1ACCodingSet ff_vc1_ac_coding_set[CodingSet][PictureComponent]
@@ -274,70 +274,93 @@ extern const uint8_t ff_vc1_high_motion_chroma_dc_bits[120];
 /* High-motion Intra VLC Table (Table 177)
  * as specified in 11.8.1
  */
-extern const uint16_t ff_vc1_high_motion_intra_index_codes[186];
-extern const uint8_t ff_vc1_high_motion_intra_index_bits[186];
+extern const uint16_t ff_vc1_high_motion_intra_index_codes[188];
+extern const uint8_t ff_vc1_high_motion_intra_index_bits[188];
+extern const uint16_t ff_vc1_high_motion_intra_index_symbols[188];
 
 /* High-motion Inter VLC Table (Table 184)
  * as specified in 11.8.1
  */
-extern const uint16_t ff_vc1_high_motion_inter_index_codes[169];
-extern const uint8_t ff_vc1_high_motion_inter_index_bits[169];
+extern const uint16_t ff_vc1_high_motion_inter_index_codes[171];
+extern const uint8_t ff_vc1_high_motion_inter_index_bits[171];
+extern const uint16_t ff_vc1_high_motion_inter_index_symbols[171];
 
 /* Low-motion Intra VLC Table (Table 191)
  * as specified in 11.8.2
  */
-extern const uint16_t ff_vc1_low_motion_intra_index_codes[133];
-extern const uint8_t ff_vc1_low_motion_intra_index_bits[133];
+extern const uint16_t ff_vc1_low_motion_intra_index_codes[135];
+extern const uint8_t ff_vc1_low_motion_intra_index_bits[135];
+extern const uint16_t ff_vc1_low_motion_intra_index_symbols[135];
 
 /* Low-motion Inter VLC Table (Table 198)
  * as specified in 11.8.3
  */
-extern const uint16_t ff_vc1_low_motion_inter_index_codes[149];
-extern const uint8_t ff_vc1_low_motion_inter_index_bits[149];
+extern const uint16_t ff_vc1_low_motion_inter_index_codes[151];
+extern const uint8_t ff_vc1_low_motion_inter_index_bits[151];
+extern const uint16_t ff_vc1_low_motion_inter_index_symbols[151];
 
 /* Mid Rate Intra VLC Table (Table 205)
  * as specified in 11.8.4
  */
-extern const uint8_t ff_vc1_mid_rate_intra_index_codes[103];
-extern const uint8_t ff_vc1_mid_rate_intra_index_bits[103];
+extern const uint8_t ff_vc1_mid_rate_intra_index_codes[105];
+extern const uint8_t ff_vc1_mid_rate_intra_index_bits[105];
+extern const uint16_t ff_vc1_mid_rate_intra_index_symbols[105];
 
 /* Mid Rate Inter VLC Table (Table 212)
  * as specified in 11.8.5
  */
-extern const uint8_t ff_vc1_mid_rate_inter_index_codes[103];
-extern const uint8_t ff_vc1_mid_rate_inter_index_bits[103];
+extern const uint8_t ff_vc1_mid_rate_inter_index_codes[105];
+extern const uint8_t ff_vc1_mid_rate_inter_index_bits[105];
+extern const uint16_t ff_vc1_mid_rate_inter_index_symbols[105];
 
 /* High Rate Intra VLC Table (Table 219)
  * as specified in 11.8.6
  */
-extern const uint16_t ff_vc1_high_rate_intra_index_codes[163];
-extern const uint8_t ff_vc1_high_rate_intra_index_bits[163];
+extern const uint16_t ff_vc1_high_rate_intra_index_codes[165];
+extern const uint8_t ff_vc1_high_rate_intra_index_bits[165];
+extern const uint16_t ff_vc1_high_rate_intra_index_symbols[165];
 
 /* High Rate Inter VLC Table (Table 226)
  * as specified in 11.8.7
  */
-extern const uint32_t ff_vc1_high_rate_inter_index_codes[175];
-extern const uint8_t ff_vc1_high_rate_inter_index_bits[175];
+extern const uint32_t ff_vc1_high_rate_inter_index_codes[177];
+extern const uint8_t ff_vc1_high_rate_inter_index_bits[177];
+extern const uint16_t ff_vc1_high_rate_inter_index_symbols[177];
 
 /* Intra Normal Scan Zigzag Table (Table 233)
  * as specified in 11.9.1 (transposed)
  */
-extern const uint8_t ff_vc1_intra_8x8_normal_scan_zz_table[64];
+extern const int8_t ff_vc1_intra_8x8_normal_scan_zz_table[64];
 
 /* Intra Horizontal Scan Zigzag Table (Table 234)
  * as specified in 11.9.1 (transposed)
  */
-extern const uint8_t ff_vc1_intra_8x8_horiz_scan_zz_table[64];
+extern const int8_t ff_vc1_intra_8x8_horiz_scan_zz_table[64];
 
 /* Intra Vertical Scan Zigzag Table (Table 235)
  * as specified in 11.9.1 (transposed)
  */
-extern const uint8_t ff_vc1_intra_8x8_vert_scan_zz_table[64];
+extern const int8_t ff_vc1_intra_8x8_vert_scan_zz_table[64];
 
 /* Inter 8x8 Scan Zigzag Table (Table 236)
  * as specified in 11.9.2 (transposed)
  */
-extern const uint8_t ff_vc1_inter_8x8_scan_zz_table[64];
+extern const int8_t ff_vc1_inter_8x8_scan_zz_table[64];
+
+/* Inter 8x4 Scan Zigzag Table (Table 237)
+ * as specified in 11.9.2
+ */
+extern const int8_t ff_vc1_inter_8x4_scan_zz_table[32];
+
+/* Inter 4x8 Scan Zigzag Table (Table 238)
+ * as specified in 11.9.2 (adapted)
+ */
+extern const int8_t ff_vc1_inter_4x8_scan_zz_table[32];
+
+/* Inter 4x4 Scan Zigzag Table (Table 239)
+ * as specified in 11.9.2 (adapted)
+ */
+extern const int8_t ff_vc1_inter_4x4_scan_zz_table[16];
 
 /* P Interlaced field picture MV predictor scaling values (Table 114) */
 extern const uint16_t ff_vc1_field_mvpred_scales[2][7][4];

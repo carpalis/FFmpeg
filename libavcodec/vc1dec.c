@@ -916,17 +916,6 @@ static int vc1_decode_frame(AVCodecContext *avctx, void *data,
     ret = v->seq->decode_picture_header(v, &s->gb);
     if (ret < 0)
         return AVERROR_INVALIDDATA;
-//    v->pict->init(v);
-//    if (v->seq->profile < PROFILE_ADVANCED) {
-//        if ((ret = ff_vc1_decode_picture_header(v, &s->gb)) < 0) {
-//            goto err;
-//        }
-//        v->pict->init(v);
-//    } else {
-//        if ((ret = ff_vc1_parse_frame_header_adv(v, &s->gb)) < 0) {
-//            goto err;
-//        }
-//    }
     v->first_pic_header_flag = 0;
 
     if (avctx->debug & FF_DEBUG_PICT_INFO)

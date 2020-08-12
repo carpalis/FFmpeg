@@ -1046,30 +1046,30 @@ const uint8_t ff_vc1_adv_interlaced_4x4_zz [16] = { /* Table 238 */
     26,    11,    19,    27
 };
 
-const uint8_t vc1_high_motion_intra_run_level_table[185][2];
-const uint8_t vc1_high_motion_intra_delta_level_table[69];
-const uint8_t vc1_high_motion_intra_delta_run_table[27];
-const uint8_t vc1_high_motion_inter_run_level_table[168][2];
-const uint8_t vc1_high_motion_inter_delta_level_table[64];
-const uint8_t vc1_high_motion_inter_delta_run_table[34];
-const uint8_t vc1_low_motion_intra_run_level_table[132][2];
-const uint8_t vc1_low_motion_intra_delta_level_table[48];
-const uint8_t vc1_low_motion_intra_delta_run_table[22];
-const uint8_t vc1_low_motion_inter_run_level_table[148][2];
-const uint8_t vc1_low_motion_inter_delta_level_table[74];
-const uint8_t vc1_low_motion_inter_delta_run_table[21];
-const uint8_t vc1_mid_rate_intra_run_level_table[102][2];
-const uint8_t vc1_mid_rate_intra_delta_level_table[36];
-const uint8_t vc1_mid_rate_intra_delta_run_table[37];
-const uint8_t vc1_mid_rate_inter_run_level_table[102][2];
-const uint8_t vc1_mid_rate_inter_delta_level_table[68];
-const uint8_t vc1_mid_rate_inter_delta_run_table[17];
-const uint8_t vc1_high_rate_intra_run_level_table[162][2];
-const uint8_t vc1_high_rate_intra_delta_level_table[32];
-const uint8_t vc1_high_rate_intra_delta_run_table[62];
-const uint8_t vc1_high_rate_inter_run_level_table[174][2];
-const uint8_t vc1_high_rate_inter_delta_level_table[56];
-const uint8_t vc1_high_rate_inter_delta_run_table[38];
+const int8_t vc1_high_motion_intra_run_level_table[185][2];
+const int8_t vc1_high_motion_intra_delta_level_table[69];
+const int8_t vc1_high_motion_intra_delta_run_table[27];
+const int8_t vc1_high_motion_inter_run_level_table[168][2];
+const int8_t vc1_high_motion_inter_delta_level_table[64];
+const int8_t vc1_high_motion_inter_delta_run_table[34];
+const int8_t vc1_low_motion_intra_run_level_table[132][2];
+const int8_t vc1_low_motion_intra_delta_level_table[48];
+const int8_t vc1_low_motion_intra_delta_run_table[22];
+const int8_t vc1_low_motion_inter_run_level_table[148][2];
+const int8_t vc1_low_motion_inter_delta_level_table[74];
+const int8_t vc1_low_motion_inter_delta_run_table[21];
+const int8_t vc1_mid_rate_intra_run_level_table[102][2];
+const int8_t vc1_mid_rate_intra_delta_level_table[36];
+const int8_t vc1_mid_rate_intra_delta_run_table[37];
+const int8_t vc1_mid_rate_inter_run_level_table[102][2];
+const int8_t vc1_mid_rate_inter_delta_level_table[68];
+const int8_t vc1_mid_rate_inter_delta_run_table[17];
+const int8_t vc1_high_rate_intra_run_level_table[162][2];
+const int8_t vc1_high_rate_intra_delta_level_table[32];
+const int8_t vc1_high_rate_intra_delta_run_table[62];
+const int8_t vc1_high_rate_inter_run_level_table[174][2];
+const int8_t vc1_high_rate_inter_delta_level_table[56];
+const int8_t vc1_high_rate_inter_delta_run_table[38];
 
 /* ASPECT_RATIO to Sample Aspect Ratio (Table 7) as specified in 6.1.14.3.1 */
 const AVRational ff_vc1_sample_aspect_ratio[14] = {
@@ -1126,7 +1126,7 @@ const uint8_t ff_vc1_mvmode2_table[2][4] = {
 };
 
 /* MQUANT to DCStepSize as specified in 8.1.3.3 */
-const uint8_t ff_vc1_dc_scale_table[32] = {
+const int8_t ff_vc1_dc_scale_table[32] = {
      0,  2,  4,  8,  8,  8,  9,  9, 10, 10, 11, 11, 12, 12, 13, 13,
     14, 14, 15, 15, 16, 16, 17, 17, 18, 18, 19, 19, 20, 20, 21, 21
 };
@@ -1138,22 +1138,16 @@ const VC1ACCodingSet ff_vc1_ac_coding_set[CS_MAX][COMPONENT_MAX] = {
     {
         {
             .index_vlc = NULL,
-            .run_level_table = (uint8_t(*)[2])vc1_high_rate_intra_run_level_table,
-            .delta_level_table = (uint8_t*)vc1_high_rate_intra_delta_level_table,
-            .delta_run_table = (uint8_t*)vc1_high_rate_intra_delta_run_table,
-            .start_index_of_last = 126,
-            .escape_index = 162,
+            .delta_level_table = vc1_high_rate_intra_delta_level_table,
+            .delta_run_table = vc1_high_rate_intra_delta_run_table,
             .delta_level_idx_of_last = 15,
             .delta_run_idx_of_last = 57,
             .max_depth = 2
         },
         {
             .index_vlc = NULL,
-            .run_level_table = (uint8_t(*)[2])vc1_high_rate_inter_run_level_table,
-            .delta_level_table = (uint8_t*)vc1_high_rate_inter_delta_level_table,
-            .delta_run_table = (uint8_t*)vc1_high_rate_inter_delta_run_table,
-            .start_index_of_last = 109,
-            .escape_index = 174,
+            .delta_level_table = vc1_high_rate_inter_delta_level_table,
+            .delta_run_table = vc1_high_rate_inter_delta_run_table,
             .delta_level_idx_of_last = 25,
             .delta_run_idx_of_last = 33,
             .max_depth = 3
@@ -1162,22 +1156,16 @@ const VC1ACCodingSet ff_vc1_ac_coding_set[CS_MAX][COMPONENT_MAX] = {
     {
         {
             .index_vlc = NULL,
-            .run_level_table = (uint8_t(*)[2])vc1_low_motion_intra_run_level_table,
-            .delta_level_table = (uint8_t*)vc1_low_motion_intra_delta_level_table,
-            .delta_run_table = (uint8_t*)vc1_low_motion_intra_delta_run_table,
-            .start_index_of_last = 85,
-            .escape_index = 132,
+            .delta_level_table = vc1_low_motion_intra_delta_level_table,
+            .delta_run_table = vc1_low_motion_intra_delta_run_table,
             .delta_level_idx_of_last = 21,
             .delta_run_idx_of_last = 17,
             .max_depth = 2
         },
         {
             .index_vlc = NULL,
-            .run_level_table = (uint8_t(*)[2])vc1_low_motion_inter_run_level_table,
-            .delta_level_table = (uint8_t*)vc1_low_motion_inter_delta_level_table,
-            .delta_run_table = (uint8_t*)vc1_low_motion_inter_delta_run_table,
-            .start_index_of_last = 81,
-            .escape_index = 148,
+            .delta_level_table = vc1_low_motion_inter_delta_level_table,
+            .delta_run_table = vc1_low_motion_inter_delta_run_table,
             .delta_level_idx_of_last = 30,
             .delta_run_idx_of_last = 15,
             .max_depth = 2
@@ -1186,22 +1174,16 @@ const VC1ACCodingSet ff_vc1_ac_coding_set[CS_MAX][COMPONENT_MAX] = {
     {
         {
             .index_vlc = NULL,
-            .run_level_table = (uint8_t(*)[2])vc1_high_motion_intra_run_level_table,
-            .delta_level_table = (uint8_t*)vc1_high_motion_intra_delta_level_table,
-            .delta_run_table = (uint8_t*)vc1_high_motion_intra_delta_run_table,
-            .start_index_of_last = 119,
-            .escape_index = 185,
+            .delta_level_table = vc1_high_motion_intra_delta_level_table,
+            .delta_run_table = vc1_high_motion_intra_delta_run_table,
             .delta_level_idx_of_last = 31,
             .delta_run_idx_of_last = 20,
             .max_depth = 2
         },
         {
             .index_vlc = NULL,
-            .run_level_table = (uint8_t(*)[2])vc1_high_motion_inter_run_level_table,
-            .delta_level_table = (uint8_t*)vc1_high_motion_inter_delta_level_table,
-            .delta_run_table = (uint8_t*)vc1_high_motion_inter_delta_run_table,
-            .start_index_of_last = 99,
-            .escape_index = 168,
+            .delta_level_table = vc1_high_motion_inter_delta_level_table,
+            .delta_run_table = vc1_high_motion_inter_delta_run_table,
             .delta_level_idx_of_last = 27,
             .delta_run_idx_of_last = 24,
             .max_depth = 2
@@ -1210,22 +1192,16 @@ const VC1ACCodingSet ff_vc1_ac_coding_set[CS_MAX][COMPONENT_MAX] = {
     {
         {
             .index_vlc = NULL,
-            .run_level_table = (uint8_t(*)[2])vc1_mid_rate_intra_run_level_table,
-            .delta_level_table = (uint8_t*)vc1_mid_rate_intra_delta_level_table,
-            .delta_run_table = (uint8_t*)vc1_mid_rate_intra_delta_run_table,
-            .start_index_of_last = 67,
-            .escape_index = 102,
+            .delta_level_table = vc1_mid_rate_intra_delta_level_table,
+            .delta_run_table = vc1_mid_rate_intra_delta_run_table,
             .delta_level_idx_of_last = 15,
             .delta_run_idx_of_last = 28,
             .max_depth = 2
         },
         {
             .index_vlc = NULL,
-            .run_level_table = (uint8_t(*)[2])vc1_mid_rate_inter_run_level_table,
-            .delta_level_table = (uint8_t*)vc1_mid_rate_inter_delta_level_table,
-            .delta_run_table = (uint8_t*)vc1_mid_rate_inter_delta_run_table,
-            .start_index_of_last = 58,
-            .escape_index = 102,
+            .delta_level_table = vc1_mid_rate_inter_delta_level_table,
+            .delta_run_table = vc1_mid_rate_inter_delta_run_table,
             .delta_level_idx_of_last = 27,
             .delta_run_idx_of_last = 13,
             .max_depth = 2
@@ -1531,7 +1507,7 @@ const uint8_t ff_vc1_high_motion_chroma_dc_bits[120] = {
 /* High-motion Intra VLC Table (Table 177)
  * as specified in 11.8.1
  */
-const uint16_t ff_vc1_high_motion_intra_index_codes[186] = {
+const uint16_t ff_vc1_high_motion_intra_index_codes[188] = {
         1,     5,    13,    18,    14,    21,    19,    63,
        75,   287,   184,   995,   370,   589,   986,   733,
      8021,  1465, 16046,     0,    16,     8,    32,    41,
@@ -1555,10 +1531,10 @@ const uint16_t ff_vc1_high_motion_intra_index_codes[186] = {
      8031,   122,  8022,   561,   996,   417,   323,   503,
       367,   658,   743,   364,   365,   988,  3979,  1177,
       984,  1934,   725,  8030,  7979,  1935,  1197, 16047,
-     9180,    74
+     9180, (74 << 1) + 1, (74 << 2) + 1, (74 << 2)
 };
 
-const uint8_t ff_vc1_high_motion_intra_index_bits[186] = {
+const uint8_t ff_vc1_high_motion_intra_index_bits[188] = {
         2,     3,     4,     5,     6,     7,     8,     8,
         9,     9,    10,    10,    11,    12,    12,    13,
        13,    14,    14,     4,     5,     7,     8,     9,
@@ -1582,13 +1558,40 @@ const uint8_t ff_vc1_high_motion_intra_index_bits[186] = {
        13,     9,    13,    10,    10,    11,    11,    11,
        12,    12,    12,    12,    12,    12,    12,    13,
        12,    13,    13,    13,    13,    13,    14,    14,
-       14,     9
+       14,    10,    11,    11
+};
+
+const uint16_t ff_vc1_high_motion_intra_index_symbols[188] = {
+       64,   128,   192,   256,   320,   384,   448,   512,
+      576,   640,   704,   768,   832,   896,   960,  1024,
+     1088,  1152,  1216,    65,   129,   193,   257,   321,
+      385,   449,   513,   577,   641,   705,   769,   833,
+      897,   961,    66,   130,   194,   258,   322,   386,
+      450,   514,   578,   642,   706,   770,    67,   131,
+      195,   259,   323,   387,   451,   515,   579,   643,
+      707,    68,   132,   196,   260,   324,   388,    69,
+      133,   197,   261,   325,    70,   134,   198,   262,
+       71,   135,   199,   263,    72,   136,   200,   264,
+       73,   137,   201,   265,    74,   138,   202,    75,
+      139,   203,    76,   140,   204,    77,   141,   205,
+       78,   142,   206,    79,   143,   207,    80,   144,
+       81,   145,    82,    83,    84,    85,    86,    87,
+       88,    89,    90,    91,    92,    93,    94,  4160,
+     4224,  4288,  4352,  4416,  4480,  4161,  4225,  4289,
+     4353,  4417,  4162,  4226,  4290,  4354,  4163,  4227,
+     4291,  4355,  4164,  4228,  4292,  4165,  4229,  4166,
+     4230,  4167,  4231,  4168,  4232,  4169,  4233,  4170,
+     4234,  4171,  4235,  4172,  4236,  4173,  4237,  4174,
+     4238,  4175,  4239,  4176,  4177,  4178,  4179,  4180,
+     4181,  4182,  4183,  4184,  4185,  4186,  4187,  4188,
+     4189,  4190,  4191,  4192,  4193,  4194,  4195,  4196,
+     4197, (1 << 13), (2 << 13), (3 << 13)
 };
 
 /* High-motion Intra Run and Level Table (Tables 178 & 179)
  * as specified in 11.8.1
  */
-const uint8_t vc1_high_motion_intra_run_level_table[185][2] = {
+const int8_t vc1_high_motion_intra_run_level_table[185][2] = {
     {  0,  1 }, {  0,  2 }, {  0,  3 }, {  0,  4 }, {  0,  5 }, {  0,  6 }, {  0,  7 }, {  0,  8 },
     {  0,  9 }, {  0, 10 }, {  0, 11 }, {  0, 12 }, {  0, 13 }, {  0, 14 }, {  0, 15 }, {  0, 16 },
     {  0, 17 }, {  0, 18 }, {  0, 19 }, {  1,  1 }, {  1,  2 }, {  1,  3 }, {  1,  4 }, {  1,  5 },
@@ -1618,7 +1621,7 @@ const uint8_t vc1_high_motion_intra_run_level_table[185][2] = {
 /* High-motion Intra Delta Level Table (Tables 180 & 181)
  * as specified in 11.8.1
  */
-const uint8_t vc1_high_motion_intra_delta_level_table[69] = {
+const int8_t vc1_high_motion_intra_delta_level_table[69] = {
     19, 15, 12, 11,  6,  5,  4,  4,  4,  4,  3,  3,  3,  3,  3,  3,
      2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  6,
      5,  4,  4,  3,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,  1,
@@ -1629,7 +1632,7 @@ const uint8_t vc1_high_motion_intra_delta_level_table[69] = {
 /* High-motion Intra Delta Run Table (Tables 182 & 183)
  * as specified in 11.8.1
  */
-const uint8_t vc1_high_motion_intra_delta_run_table[27] = {
+const int8_t vc1_high_motion_intra_delta_run_table[27] = {
      0, 30, 17, 15,  9,  5,  4,  3,  3,  3,  3,  3,  2,  1,  1,  1,
      0,  0,  0,  0,  0, 37, 15,  4,  3,  1,  0
 };
@@ -1637,7 +1640,7 @@ const uint8_t vc1_high_motion_intra_delta_run_table[27] = {
 /* High-motion Inter VLC Table (Table 184)
  * as specified in 11.8.1
  */
-const uint16_t ff_vc1_high_motion_inter_index_codes[169] = {
+const uint16_t ff_vc1_high_motion_inter_index_codes[171] = {
         0,     3,    11,    20,    63,    93,   162,   172,
       366,   522,   738,  1074,  1481,  2087,  2900,  1254,
      4191,  5930,  8370, 11598, 14832, 16757, 23198,     4,
@@ -1659,10 +1662,10 @@ const uint16_t ff_vc1_high_motion_inter_index_codes[169] = {
       160,  5224,   368,   144,   462,   538,   536,   360,
       542,   580,  1846,   312,  1305,  3678,  1836,  2901,
      2524,  8379,  1164,  5923, 11844,  5797,  1304, 14846,
-      361
+    (361 << 1) + 1, (361 << 2) + 1, (361 << 2)
 };
 
-const uint8_t ff_vc1_high_motion_inter_index_bits[169] = {
+const uint8_t ff_vc1_high_motion_inter_index_bits[171] = {
         3,     4,     5,     6,     6,     7,     8,     9,
         9,    10,    10,    11,    11,    12,    12,    13,
        13,    13,    14,    14,    14,    15,    15,     4,
@@ -1684,13 +1687,38 @@ const uint8_t ff_vc1_high_motion_inter_index_bits[169] = {
         8,    13,     9,    10,     9,    10,    10,     9,
        10,    12,    11,    11,    11,    12,    11,    12,
        14,    14,    13,    13,    14,    13,    11,    14,
-        9
+       10,    11,    11
+};
+
+const uint16_t ff_vc1_high_motion_inter_index_symbols[171] = {
+       64,   128,   192,   256,   320,   384,   448,   512,
+      576,   640,   704,   768,   832,   896,   960,  1024,
+     1088,  1152,  1216,  1280,  1344,  1408,  1472,    65,
+      129,   193,   257,   321,   385,   449,   513,   577,
+      641,   705,    66,   130,   194,   258,   322,   386,
+      450,   514,    67,   131,   195,   259,   323,   387,
+      451,    68,   132,   196,   260,   324,    69,   133,
+      197,   261,   325,    70,   134,   198,   262,    71,
+      135,   199,   263,    72,   136,   200,    73,   137,
+      201,    74,   138,   202,    75,   139,   203,    76,
+      140,    77,   141,    78,   142,    79,   143,    80,
+      144,    81,    82,    83,    84,    85,    86,    87,
+       88,    89,    90,  4160,  4224,  4288,  4352,  4416,
+     4480,  4544,  4608,  4672,  4161,  4225,  4289,  4353,
+     4417,  4162,  4226,  4290,  4354,  4163,  4227,  4291,
+     4355,  4164,  4228,  4292,  4165,  4229,  4293,  4166,
+     4230,  4294,  4167,  4231,  4168,  4232,  4169,  4233,
+     4170,  4234,  4171,  4235,  4172,  4236,  4173,  4237,
+     4174,  4238,  4175,  4176,  4177,  4178,  4179,  4180,
+     4181,  4182,  4183,  4184,  4185,  4186,  4187,  4188,
+     4189,  4190,  4191,  4192,  4193,  4194,  4195,  4196,
+    (1 << 13), (2 << 13), (3 << 13)
 };
 
 /* High-motion Inter Run and Level Table (Tables 185 & 186)
  * as specified in 11.8.1
  */
-const uint8_t vc1_high_motion_inter_run_level_table[168][2] = {
+const int8_t vc1_high_motion_inter_run_level_table[168][2] = {
     {  0,  1 }, {  0,  2 }, {  0,  3 }, {  0,  4 }, {  0,  5 }, {  0,  6 }, {  0,  7 }, {  0,  8 },
     {  0,  9 }, {  0, 10 }, {  0, 11 }, {  0, 12 }, {  0, 13 }, {  0, 14 }, {  0, 15 }, {  0, 16 },
     {  0, 17 }, {  0, 18 }, {  0, 19 }, {  0, 20 }, {  0, 21 }, {  0, 22 }, {  0, 23 }, {  1,  1 },
@@ -1717,7 +1745,7 @@ const uint8_t vc1_high_motion_inter_run_level_table[168][2] = {
 /* High-motion Inter Delta Level Table (Tables 187 & 188)
  * as specified in 11.8.1
  */
-const uint8_t vc1_high_motion_inter_delta_level_table[64] = {
+const int8_t vc1_high_motion_inter_delta_level_table[64] = {
     23, 11,  8,  7,  5,  5,  4,  4,
      3,  3,  3,  3,  2,  2,  2,  2,
      2,  1,  1,  1,  1,  1,  1,  1,
@@ -1731,7 +1759,7 @@ const uint8_t vc1_high_motion_inter_delta_level_table[64] = {
 /* High-motion Inter Delta Run Table (Tables 189 & 190)
  * as specified in 11.8.1
  */
-const uint8_t vc1_high_motion_inter_delta_run_table[34] = {
+const int8_t vc1_high_motion_inter_delta_run_table[34] = {
      0, 26, 16, 11,  7,  5,  3,  3,
      2,  1,  1,  1,  0,  0,  0,  0,
      0,  0,  0,  0,  0,  0,  0,  0,
@@ -1742,7 +1770,7 @@ const uint8_t vc1_high_motion_inter_delta_run_table[34] = {
 /* Low-motion Intra VLC Table (Table 191)
  * as specified in 11.8.2
  */
-const uint16_t ff_vc1_low_motion_intra_index_codes[133] = {
+const uint16_t ff_vc1_low_motion_intra_index_codes[135] = {
        1,    6,   15,   22,   32,   24,    8,  154,
       86,  318,  240,  933,  119,  495,  154,   93,
        1,   17,    2,   11,   18,  470,  638,  401,
@@ -1759,10 +1787,10 @@ const uint16_t ff_vc1_low_motion_intra_index_codes[133] = {
      971,    6, 2462,   42, 1521,   15, 2558,   51,
     2559,  152, 2463,  234,  316,   46,  402,  310,
      106,   21,  943,  483,  116,  235,  761,   92,
-     237,  989,  806,   94,   22
+     237,  989,  806,   94, (22 << 1) + 1, (22 << 2) + 1, (22 << 2)
 };
 
-const uint8_t ff_vc1_low_motion_intra_index_bits[133] = {
+const uint8_t ff_vc1_low_motion_intra_index_bits[135] = {
        2,    3,    4,    5,    6,    7,    8,    8,
        9,    9,   10,   10,   11,   11,   12,   13,
        4,    5,    7,    8,    9,    9,   10,   11,
@@ -1779,13 +1807,33 @@ const uint8_t ff_vc1_low_motion_intra_index_bits[133] = {
       12,    8,   12,    8,   13,    8,   12,    8,
       12,    8,   12,    8,   13,    8,   11,    9,
        9,   11,   10,   11,   11,   12,   12,   13,
-      12,   12,   12,   13,    7
+      12,   12,   12,   13,    8,    9,    9
+};
+
+const uint16_t ff_vc1_low_motion_intra_index_symbols[135] = {
+      64,  128,  192,  256,  320,  384,  448,  512,
+     576,  640,  704,  768,  832,  896,  960, 1024,
+      65,  129,  193,  257,  321,  385,  449,  513,
+     577,  641,  705,   66,  130,  194,  258,  322,
+     386,  450,  514,   67,  131,  195,  259,  323,
+     387,  451,   68,  132,  196,  260,  324,   69,
+     133,  197,  261,   70,  134,  198,  262,   71,
+     135,  199,   72,  136,  200,   73,  137,  201,
+      74,  138,  202,   75,  139,  203,   76,  140,
+     204,   77,  141,  205,   78,  142,   79,  143,
+      80,   81,   82,   83,   84, 4160, 4224, 4288,
+    4352, 4161, 4225, 4289, 4353, 4162, 4226, 4290,
+    4163, 4227, 4291, 4164, 4228, 4165, 4229, 4166,
+    4230, 4167, 4231, 4168, 4232, 4169, 4233, 4170,
+    4234, 4171, 4235, 4172, 4236, 4173, 4237, 4174,
+    4175, 4176, 4177, 4178, 4179, 4180, 4181, 4182,
+    4183, 4184, 4185, 4186, (1 << 13), (2 << 13), (3 << 13)
 };
 
 /* Low-motion Intra Run and Level Table (Tables 192 & 193)
  * as specified in 11.8.2
  */
-const uint8_t vc1_low_motion_intra_run_level_table[132][2] = {
+const int8_t vc1_low_motion_intra_run_level_table[132][2] = {
     {  0,  1 }, {  0,  2 }, {  0,  3 }, {  0,  4 }, {  0,  5 }, {  0,  6 }, {  0,  7 }, {  0,  8 },
     {  0,  9 }, {  0, 10 }, {  0, 11 }, {  0, 12 }, {  0, 13 }, {  0, 14 }, {  0, 15 }, {  0, 16 },
     {  1,  1 }, {  1,  2 }, {  1,  3 }, {  1,  4 }, {  1,  5 }, {  1,  6 }, {  1,  7 }, {  1,  8 },
@@ -1808,7 +1856,7 @@ const uint8_t vc1_low_motion_intra_run_level_table[132][2] = {
 /* Low-motion Intra Delta Level Table (Tables 194 & 195)
  * as specified in 11.8.2
  */
-const uint8_t vc1_low_motion_intra_delta_level_table[48] = {
+const int8_t vc1_low_motion_intra_delta_level_table[48] = {
     16, 11,  8,  7,  5,  4,  4,  3,
      3,  3,  3,  3,  3,  3,  2,  2,
      1,  1,  1,  1,  1,  4,  4,  3,
@@ -1820,7 +1868,7 @@ const uint8_t vc1_low_motion_intra_delta_level_table[48] = {
 /* Low-motion Intra Delta Run Table (Tables 196 & 197)
  * as specified in 11.8.2
  */
-const uint8_t vc1_low_motion_intra_delta_run_table[22] = {
+const int8_t vc1_low_motion_intra_delta_run_table[22] = {
      0, 20, 15, 13,  6,  4,  3,  3,
      2,  1,  1,  1,  0,  0,  0,  0,
      0,  0, 26, 13,  3,  1
@@ -1829,7 +1877,7 @@ const uint8_t vc1_low_motion_intra_delta_run_table[22] = {
 /* Low-motion Inter VLC Table (Table 198)
  * as specified in 11.8.3
  */
-const uint16_t ff_vc1_low_motion_inter_index_codes[149] = {
+const uint16_t ff_vc1_low_motion_inter_index_codes[151] = {
         4,    20,    23,   127,   340,   498,   191,   101,
      2730,  1584,  5527,   951, 11042,  3046,    11,    55,
        98,     7,   358,   206,  5520,  1526,  3047,     7,
@@ -1848,10 +1896,10 @@ const uint16_t ff_vc1_low_motion_inter_index_codes[149] = {
       126,   171,    45,   216,    11,    20,   691,   499,
        58,     0,    88,    46,    94,  1379,   236,    84,
      2753,  5462,   762,   385,  5463,  1437, 10915, 11050,
-      478,  1596,   207,  5524,    13
+      478,  1596,   207,  5524, (13 << 1) + 1, (13 << 2) + 1, (13 << 2)
 };
 
-const uint8_t ff_vc1_low_motion_inter_index_bits[149] = {
+const uint8_t ff_vc1_low_motion_inter_index_bits[151] = {
         3,     5,     7,     8,     9,    10,    11,    12,
        12,    13,    13,    14,    14,    15,     4,     7,
         9,    11,    12,    13,    13,    14,    15,     5,
@@ -1870,13 +1918,35 @@ const uint8_t ff_vc1_low_motion_inter_index_bits[149] = {
         8,     8,     9,     9,     9,    10,    10,    10,
        10,    10,    10,     9,    10,    11,    12,    12,
        12,    13,    13,    11,    13,    14,    14,    14,
-       14,    13,    13,    13,     9
+       14,    13,    13,    13,    10,    11,    11
+};
+
+const uint16_t ff_vc1_low_motion_inter_index_symbols[151] = {
+       64,   128,   192,   256,   320,   384,   448,   512,
+      576,   640,   704,   768,   832,   896,    65,   129,
+      193,   257,   321,   385,   449,   513,   577,    66,
+      130,   194,   258,   322,    67,   131,   195,   259,
+       68,   132,   196,   260,    69,   133,   197,   261,
+       70,   134,   198,    71,   135,   199,    72,   136,
+      200,    73,   137,   201,    74,   138,   202,    75,
+      139,   203,    76,   140,   204,    77,   141,    78,
+      142,    79,   143,    80,    81,    82,    83,    84,
+       85,    86,    87,    88,    89,    90,    91,    92,
+       93,  4160,  4224,  4288,  4352,  4416,  4161,  4225,
+     4289,  4353,  4162,  4226,  4290,  4163,  4227,  4291,
+     4164,  4228,  4165,  4229,  4166,  4230,  4167,  4231,
+     4168,  4232,  4169,  4233,  4170,  4234,  4171,  4235,
+     4172,  4236,  4173,  4237,  4174,  4238,  4175,  4239,
+     4176,  4177,  4178,  4179,  4180,  4181,  4182,  4183,
+     4184,  4185,  4186,  4187,  4188,  4189,  4190,  4191,
+     4192,  4193,  4194,  4195,  4196,  4197,  4198,  4199,
+     4200,  4201,  4202,  4203, (1 << 13), (2 << 13), (3 << 13)
 };
 
 /* Low-motion Inter Run and Level Table (Tables 199 & 200)
  * as specified in 11.8.3
  */
-const uint8_t vc1_low_motion_inter_run_level_table[148][2] = {
+const int8_t vc1_low_motion_inter_run_level_table[148][2] = {
     {  0,  1 }, {  0,  2 }, {  0,  3 }, {  0,  4 }, {  0,  5 }, {  0,  6 }, {  0,  7 }, {  0,  8 },
     {  0,  9 }, {  0, 10 }, {  0, 11 }, {  0, 12 }, {  0, 13 }, {  0, 14 }, {  1,  1 }, {  1,  2 },
     {  1,  3 }, {  1,  4 }, {  1,  5 }, {  1,  6 }, {  1,  7 }, {  1,  8 }, {  1,  9 }, {  2,  1 },
@@ -1901,7 +1971,7 @@ const uint8_t vc1_low_motion_inter_run_level_table[148][2] = {
 /* Low-motion Inter Delta Level Table (Tables 201 & 202)
  * as specified in 11.8.3
  */
-const uint8_t vc1_low_motion_inter_delta_level_table[74] = {
+const int8_t vc1_low_motion_inter_delta_level_table[74] = {
     14,  9,  5,  4,  4,  4,  3,  3,
      3,  3,  3,  3,  3,  2,  2,  2,
      1,  1,  1,  1,  1,  1,  1,  1,
@@ -1917,7 +1987,7 @@ const uint8_t vc1_low_motion_inter_delta_level_table[74] = {
 /* Low-motion Inter Delta Run Table (Tables 203 & 204)
  * as specified in 11.8.3
  */
-const uint8_t vc1_low_motion_inter_delta_run_table[21] = {
+const int8_t vc1_low_motion_inter_delta_run_table[21] = {
      0, 29, 15, 12,  5,  2,  1,  1,
      1,  1,  0,  0,  0,  0,  0,  0,
     43, 15,  3,  1,  0
@@ -1926,42 +1996,61 @@ const uint8_t vc1_low_motion_inter_delta_run_table[21] = {
 /* Mid Rate Intra VLC Table (Table 205)
  * as specified in 11.8.4
  */
-const uint8_t ff_vc1_mid_rate_intra_index_codes[103] = {
-     2,  6, 15, 13, 12, 21, 19, 18,
-    23, 31, 30, 29, 37, 36, 35, 33,
-    33, 32, 15, 14,  7,  6, 32, 33,
-    80, 81, 82, 14, 20, 22, 28, 32,
-    31, 13, 34, 83, 85, 11, 21, 30,
-    12, 86, 17, 27, 29, 11, 16, 34,
-    10, 13, 28,  8, 18, 27, 84, 20,
-    26, 87, 25,  9, 24, 35, 23, 25,
-    24,  7, 88,  7, 12, 22, 23,  6,
-     5,  4, 89, 15, 22,  5, 14,  4,
-    17, 36, 16, 37, 19, 90, 21, 91,
-    20, 19, 26, 21, 20, 19, 18, 17,
-    38, 39, 92, 93, 94, 95,  3
+const uint8_t ff_vc1_mid_rate_intra_index_codes[105] = {
+       2,    6,   15,   13,   12,   21,   19,   18,
+      23,   31,   30,   29,   37,   36,   35,   33,
+      33,   32,   15,   14,    7,    6,   32,   33,
+      80,   81,   82,   14,   20,   22,   28,   32,
+      31,   13,   34,   83,   85,   11,   21,   30,
+      12,   86,   17,   27,   29,   11,   16,   34,
+      10,   13,   28,    8,   18,   27,   84,   20,
+      26,   87,   25,    9,   24,   35,   23,   25,
+      24,    7,   88,    7,   12,   22,   23,    6,
+       5,    4,   89,   15,   22,    5,   14,    4,
+      17,   36,   16,   37,   19,   90,   21,   91,
+      20,   19,   26,   21,   20,   19,   18,   17,
+      38,   39,   92,   93,   94,   95, (3 << 1) + 1, (3 << 2) + 1,
+    (3 << 2)
 };
 
-const uint8_t ff_vc1_mid_rate_intra_index_bits[103] = {
-     2,  3,  4,  5,  5,  6,  6,  6,
-     7,  8,  8,  8,  9,  9,  9,  9,
-    10, 10, 10, 10, 11, 11, 11, 11,
-    12, 12, 12,  4,  6,  7,  8,  9,
-     9, 10, 11, 12, 12,  5,  7,  9,
-    10, 12,  6,  8,  9, 10,  6,  9,
-    10,  6,  9, 10,  7,  9, 12,  7,
-     9, 12,  8, 10,  8, 11,  8,  9,
-     9, 10, 12,  4,  6,  8,  9, 10,
-    11, 11, 12,  6,  9, 10,  6, 10,
-     7, 11,  7, 11,  7, 12,  8, 12,
-     8,  8,  8,  9,  9,  9,  9,  9,
-    11, 11, 12, 12, 12, 12,  7
+const uint8_t ff_vc1_mid_rate_intra_index_bits[105] = {
+       2,    3,    4,    5,    5,    6,    6,    6,
+       7,    8,    8,    8,    9,    9,    9,    9,
+      10,   10,   10,   10,   11,   11,   11,   11,
+      12,   12,   12,    4,    6,    7,    8,    9,
+       9,   10,   11,   12,   12,    5,    7,    9,
+      10,   12,    6,    8,    9,   10,    6,    9,
+      10,    6,    9,   10,    7,    9,   12,    7,
+       9,   12,    8,   10,    8,   11,    8,    9,
+       9,   10,   12,    4,    6,    8,    9,   10,
+      11,   11,   12,    6,    9,   10,    6,   10,
+       7,   11,    7,   11,    7,   12,    8,   12,
+       8,    8,    8,    9,    9,    9,    9,    9,
+      11,   11,   12,   12,   12,   12,    8,    9,
+       9
+};
+
+const uint16_t ff_vc1_mid_rate_intra_index_symbols[105] = {
+      64,  128,  192,  256,  320,  384,  448,  512,
+     576,  640,  704,  768,  832,  896,  960, 1024,
+    1088, 1152, 1216, 1280, 1344, 1408, 1472, 1536,
+    1600, 1664, 1728,   65,  129,  193,  257,  321,
+     385,  449,  513,  577,  641,   66,  130,  194,
+     258,  322,   67,  131,  195,  259,   68,  132,
+     196,   69,  133,  197,   70,  134,  198,   71,
+     135,  199,   72,  136,   73,  137,   74,   75,
+      76,   77,   78, 4160, 4224, 4288, 4352, 4416,
+    4480, 4544, 4608, 4161, 4225, 4289, 4162, 4226,
+    4163, 4227, 4164, 4228, 4165, 4229, 4166, 4230,
+    4167, 4168, 4169, 4170, 4171, 4172, 4173, 4174,
+    4175, 4176, 4177, 4178, 4179, 4180, (1 << 13), (2 << 13),
+    (3 << 13)
 };
 
 /* Mid Rate Intra Run and Level Table (Tables 206 & 207)
  * as specified in 11.8.4
  */
-const uint8_t vc1_mid_rate_intra_run_level_table[102][2] = {
+const int8_t vc1_mid_rate_intra_run_level_table[102][2] = {
     {  0,  1 }, {  0,  2 }, {  0,  3 }, {  0,  4 }, {  0,  5 }, {  0,  6 }, {  0,  7 }, {  0,  8 },
     {  0,  9 }, {  0, 10 }, {  0, 11 }, {  0, 12 }, {  0, 13 }, {  0, 14 }, {  0, 15 }, {  0, 16 },
     {  0, 17 }, {  0, 18 }, {  0, 19 }, {  0, 20 }, {  0, 21 }, {  0, 22 }, {  0, 23 }, {  0, 24 },
@@ -1980,7 +2069,7 @@ const uint8_t vc1_mid_rate_intra_run_level_table[102][2] = {
 /* Mid Rate Intra Delta Level Table (Tables 208 & 209)
  * as specified in 11.8.4
  */
-const uint8_t vc1_mid_rate_intra_delta_level_table[36] = {
+const int8_t vc1_mid_rate_intra_delta_level_table[36] = {
     27, 10,  5,  4,  3,  3,  3,  3,
      2,  2,  1,  1,  1,  1,  1,  8,
      3,  2,  2,  2,  2,  2,  1,  1,
@@ -1991,7 +2080,7 @@ const uint8_t vc1_mid_rate_intra_delta_level_table[36] = {
 /* Mid Rate Intra Delta Run Table (Tables 210 & 211)
  * as specified in 11.8.4
  */
-const uint8_t vc1_mid_rate_intra_delta_run_table[37] = {
+const int8_t vc1_mid_rate_intra_delta_run_table[37] = {
      0, 14,  9,  7,  3,  2,  1,  1,
      1,  1,  1,  0,  0,  0,  0,  0,
      0,  0,  0,  0,  0,  0,  0,  0,
@@ -2002,42 +2091,61 @@ const uint8_t vc1_mid_rate_intra_delta_run_table[37] = {
 /* Mid Rate Inter VLC Table (Table 212)
  * as specified in 11.8.5
  */
-const uint8_t ff_vc1_mid_rate_inter_index_codes[103] = {
-     2, 15, 21, 23, 31, 37, 36, 33,
-    32,  7,  6, 32,  6, 20, 30, 15,
-    33, 80, 14, 29, 14, 81, 13, 35,
-    13, 12, 34, 82, 11, 12, 83, 19,
-    11, 84, 18, 10, 17,  9, 16,  8,
-    22, 85, 21, 20, 28, 27, 33, 32,
-    31, 30, 29, 28, 27, 26, 34, 35,
-    86, 87,  7, 25,  5, 15,  4, 14,
-    13, 12, 19, 18, 17, 16, 26, 25,
-    24, 23, 22, 21, 20, 19, 24, 23,
-    22, 21, 20, 19, 18, 17,  7,  6,
-     5,  4, 36, 37, 38, 39, 88, 89,
-    90, 91, 92, 93, 94, 95,  3
+const uint8_t ff_vc1_mid_rate_inter_index_codes[105] = {
+       2,   15,   21,   23,   31,   37,   36,   33,
+      32,    7,    6,   32,    6,   20,   30,   15,
+      33,   80,   14,   29,   14,   81,   13,   35,
+      13,   12,   34,   82,   11,   12,   83,   19,
+      11,   84,   18,   10,   17,    9,   16,    8,
+      22,   85,   21,   20,   28,   27,   33,   32,
+      31,   30,   29,   28,   27,   26,   34,   35,
+      86,   87,    7,   25,    5,   15,    4,   14,
+      13,   12,   19,   18,   17,   16,   26,   25,
+      24,   23,   22,   21,   20,   19,   24,   23,
+      22,   21,   20,   19,   18,   17,    7,    6,
+       5,    4,   36,   37,   38,   39,   88,   89,
+      90,   91,   92,   93,   94,   95, (3 << 1) + 1, (3 << 2) + 1,
+    (3 << 2)
 };
 
-const uint8_t ff_vc1_mid_rate_inter_index_bits[103] = {
-     2,  4,  6,  7,  8,  9,  9, 10,
-    10, 11, 11, 11,  3,  6,  8, 10,
-    11, 12,  4,  8, 10, 12,  5,  9,
-    10,  5,  9, 12,  5, 10, 12,  6,
-    10, 12,  6, 10,  6, 10,  6, 10,
-     7, 12,  7,  7,  8,  8,  9,  9,
-     9,  9,  9,  9,  9,  9, 11, 11,
-    12, 12,  4,  9, 11,  6, 11,  6,
-     6,  6,  7,  7,  7,  7,  8,  8,
-     8,  8,  8,  8,  8,  8,  9,  9,
-     9,  9,  9,  9,  9,  9, 10, 10,
-    10, 10, 11, 11, 11, 11, 12, 12,
-    12, 12, 12, 12, 12, 12,  7
+const uint8_t ff_vc1_mid_rate_inter_index_bits[105] = {
+       2,    4,    6,    7,    8,    9,    9,   10,
+      10,   11,   11,   11,    3,    6,    8,   10,
+      11,   12,    4,    8,   10,   12,    5,    9,
+      10,    5,    9,   12,    5,   10,   12,    6,
+      10,   12,    6,   10,    6,   10,    6,   10,
+       7,   12,    7,    7,    8,    8,    9,    9,
+       9,    9,    9,    9,    9,    9,   11,   11,
+      12,   12,    4,    9,   11,    6,   11,    6,
+       6,    6,    7,    7,    7,    7,    8,    8,
+       8,    8,    8,    8,    8,    8,    9,    9,
+       9,    9,    9,    9,    9,    9,   10,   10,
+      10,   10,   11,   11,   11,   11,   12,   12,
+      12,   12,   12,   12,   12,   12,    8,    9,
+       9
+};
+
+const uint16_t ff_vc1_mid_rate_inter_index_symbols[105] = {
+      64,  128,  192,  256,  320,  384,  448,  512,
+     576,  640,  704,  768,   65,  129,  193,  257,
+     321,  385,   66,  130,  194,  258,   67,  131,
+     195,   68,  132,  196,   69,  133,  197,   70,
+     134,  198,   71,  135,   72,  136,   73,  137,
+      74,  138,   75,   76,   77,   78,   79,   80,
+      81,   82,   83,   84,   85,   86,   87,   88,
+      89,   90, 4160, 4224, 4288, 4161, 4225, 4162,
+    4163, 4164, 4165, 4166, 4167, 4168, 4169, 4170,
+    4171, 4172, 4173, 4174, 4175, 4176, 4177, 4178,
+    4179, 4180, 4181, 4182, 4183, 4184, 4185, 4186,
+    4187, 4188, 4189, 4190, 4191, 4192, 4193, 4194,
+    4195, 4196, 4197, 4198, 4199, 4200, (1 << 13), (2 << 13),
+    (3 << 13)
 };
 
 /* Mid Rate Inter Run and Level Table (Tables 213 & 214)
  * as specified in 11.8.5
  */
-const uint8_t vc1_mid_rate_inter_run_level_table[102][2] = {
+const int8_t vc1_mid_rate_inter_run_level_table[102][2] = {
     {  0,  1 }, {  0,  2 }, {  0,  3 }, {  0,  4 }, {  0,  5 }, {  0,  6 }, {  0,  7 }, {  0,  8 },
     {  0,  9 }, {  0, 10 }, {  0, 11 }, {  0, 12 }, {  1,  1 }, {  1,  2 }, {  1,  3 }, {  1,  4 },
     {  1,  5 }, {  1,  6 }, {  2,  1 }, {  2,  2 }, {  2,  3 }, {  2,  4 }, {  3,  1 }, {  3,  2 },
@@ -2056,7 +2164,7 @@ const uint8_t vc1_mid_rate_inter_run_level_table[102][2] = {
 /* Mid Rate Inter Delta Level Table (Tables 215 & 216)
  * as specified in 11.8.5
  */
-const uint8_t vc1_mid_rate_inter_delta_level_table[68] = {
+const int8_t vc1_mid_rate_inter_delta_level_table[68] = {
     12,  6,  4,  3,  3,  3,  3,  2,
      2,  2,  2,  1,  1,  1,  1,  1,
      1,  1,  1,  1,  1,  1,  1,  1,
@@ -2071,7 +2179,7 @@ const uint8_t vc1_mid_rate_inter_delta_level_table[68] = {
 /* Mid Rate Inter Delta Run Table (Tables 217 & 218)
  * as specified in 11.8.5
  */
-const uint8_t vc1_mid_rate_inter_delta_run_table[17] = {
+const int8_t vc1_mid_rate_inter_delta_run_table[17] = {
      0, 26, 10,  6,  2,  1,  1,  0,
      0,  0,  0,  0,  0,  0, 40,  1,
      0
@@ -2080,7 +2188,7 @@ const uint8_t vc1_mid_rate_inter_delta_run_table[17] = {
 /* High Rate Intra VLC Table (Table 219)
  * as specified in 11.8.6
  */
-const uint16_t ff_vc1_high_rate_intra_index_codes[163] = {
+const uint16_t ff_vc1_high_rate_intra_index_codes[165] = {
         0,     3,    13,     5,    28,    22,    63,    58,
        46,    34,   123,   103,    95,    71,    38,   239,
       205,   193,   169,    79,   498,   477,   409,   389,
@@ -2101,10 +2209,10 @@ const uint16_t ff_vc1_high_rate_intra_index_codes[163] = {
       502,  2786,   476,  1261,   388,  6404,   342,  2521,
       999,  2345,   946, 15208,   757,  5040,   802, 15209,
       564, 31029,  1991, 51251,  1632, 31028,   587, 51250,
-     2727,  7960,   122
+     2727,  7960, (122 << 1) + 1, (122 << 2) + 1, (122 << 2)
 };
 
-const uint8_t ff_vc1_high_rate_intra_index_bits[163] = {
+const uint8_t ff_vc1_high_rate_intra_index_bits[165] = {
         2,     3,     4,     4,     5,     5,     6,     6,
         6,     6,     7,     7,     7,     7,     7,     8,
         8,     8,     8,     8,     9,     9,     9,     9,
@@ -2125,13 +2233,37 @@ const uint8_t ff_vc1_high_rate_intra_index_bits[163] = {
         9,    12,     9,    12,     9,    13,     9,    13,
        10,    13,    10,    14,    10,    14,    10,    14,
        10,    15,    11,    16,    11,    15,    11,    16,
-       12,    13,     7
+       12,    13,     8,     9,     9
+};
+
+const uint16_t ff_vc1_high_rate_intra_index_symbols[165] = {
+       64,   128,   192,   256,   320,   384,   448,   512,
+      576,   640,   704,   768,   832,   896,   960,  1024,
+     1088,  1152,  1216,  1280,  1344,  1408,  1472,  1536,
+     1600,  1664,  1728,  1792,  1856,  1920,  1984,  2048,
+     2112,  2176,  2240,  2304,  2368,  2432,  2496,  2560,
+     2624,  2688,  2752,  2816,  2880,  2944,  3008,  3072,
+     3136,  3200,  3264,  3328,  3392,  3456,  3520,  3584,
+       65,   129,   193,   257,   321,   385,   449,   513,
+      577,   641,   705,   769,   833,   897,   961,  1025,
+     1089,  1153,  1217,  1281,    66,   130,   194,   258,
+      322,   386,   450,   514,   578,   642,    67,   131,
+      195,   259,   323,   387,   451,    68,   132,   196,
+      260,   324,   388,    69,   133,   197,   261,   325,
+       70,   134,   198,   262,    71,   135,   199,    72,
+      136,   200,    73,   137,   201,    74,   138,    75,
+      139,    76,   140,    77,   141,    78,  4160,  4224,
+     4288,  4352,  4161,  4225,  4289,  4162,  4226,  4290,
+     4163,  4227,  4164,  4228,  4165,  4229,  4166,  4230,
+     4167,  4231,  4168,  4232,  4169,  4233,  4170,  4234,
+     4171,  4235,  4172,  4236,  4173,  4237,  4174,  4238,
+     4175,  4176, (1 << 13), (2 << 13), (3 << 13)
 };
 
 /* High Rate Intra Run and Level Table (Tables 220 & 221)
  * as specified in 11.8.6
  */
-const uint8_t vc1_high_rate_intra_run_level_table[162][2] = {
+const int8_t vc1_high_rate_intra_run_level_table[162][2] = {
     {  0,  1 }, {  0,  2 }, {  0,  3 }, {  0,  4 }, {  0,  5 }, {  0,  6 }, {  0,  7 }, {  0,  8 },
     {  0,  9 }, {  0, 10 }, {  0, 11 }, {  0, 12 }, {  0, 13 }, {  0, 14 }, {  0, 15 }, {  0, 16 },
     {  0, 17 }, {  0, 18 }, {  0, 19 }, {  0, 20 }, {  0, 21 }, {  0, 22 }, {  0, 23 }, {  0, 24 },
@@ -2158,7 +2290,7 @@ const uint8_t vc1_high_rate_intra_run_level_table[162][2] = {
 /* High Rate Intra Delta Level Table (Tables 222 & 223)
  * as specified in 11.8.6
  */
-const uint8_t vc1_high_rate_intra_delta_level_table[32] = {
+const int8_t vc1_high_rate_intra_delta_level_table[32] = {
     56, 20, 10,  7,  6,  5,  4,  3,
      3,  3,  2,  2,  2,  2,  1,  4,
      3,  3,  2,  2,  2,  2,  2,  2,
@@ -2168,7 +2300,7 @@ const uint8_t vc1_high_rate_intra_delta_level_table[32] = {
 /* High Rate Intra Delta Run Table (Tables 224 & 225)
  * as specified in 11.8.6
  */
-const uint8_t vc1_high_rate_intra_delta_run_table[62] = {
+const int8_t vc1_high_rate_intra_delta_run_table[62] = {
      0, 14, 13,  9,  6,  5,  4,  3,
      2,  2,  2,  1,  1,  1,  1,  1,
      1,  1,  1,  1,  1,  0,  0,  0,
@@ -2182,7 +2314,7 @@ const uint8_t vc1_high_rate_intra_delta_run_table[62] = {
 /* High Rate Inter VLC Table (Table 226)
  * as specified in 11.8.7
  */
-const uint32_t ff_vc1_high_rate_inter_index_codes[175] = {
+const uint32_t ff_vc1_high_rate_inter_index_codes[177] = {
           2,       0,      30,       4,      18,     112,      26,      95,
          71,     467,     181,      87,     949,     365,     354,    1998,
        1817,    1681,     710,     342,    3986,    3374,    3360,    1438,
@@ -2204,10 +2336,11 @@ const uint32_t ff_vc1_high_rate_inter_index_codes[175] = {
         998,   92016,     366,  255906,     283, 1023629,     217, 1023631,
         168,  182051,    1865,  929924,    1686,  364101,     734,  728200,
         561, 1859850,     433, 7439405,    3371, 3719703,    3375, 1456403,
-       1458, 1456402,    1129, 7439404,    6722,    2241,     115
+       1458, 1456402,    1129, 7439404,    6722,    2241, (115 << 1) + 1, (115 << 2) + 1,
+    (115 << 2)
 };
 
-const uint8_t ff_vc1_high_rate_inter_index_bits[175] = {
+const uint8_t ff_vc1_high_rate_inter_index_bits[177] = {
           2,       3,       5,       5,       6,       7,       7,       8,
           8,       9,       9,       9,      10,      10,      10,      11,
          11,      11,      11,      11,      12,      12,      12,      12,
@@ -2229,13 +2362,40 @@ const uint8_t ff_vc1_high_rate_inter_index_bits[175] = {
          10,      18,      10,      18,      10,      20,      10,      20,
          10,      19,      11,      20,      11,      20,      11,      21,
          11,      21,      11,      23,      12,      22,      12,      22,
-         12,      22,      12,      23,      13,      13,       7
+         12,      22,      12,      23,      13,      13,       8,       9,
+          9
+};
+
+const uint16_t ff_vc1_high_rate_inter_index_symbols[177] = {
+         64,     128,     192,     256,     320,     384,     448,     512,
+        576,     640,     704,     768,     832,     896,     960,    1024,
+       1088,    1152,    1216,    1280,    1344,    1408,    1472,    1536,
+       1600,    1664,    1728,    1792,    1856,    1920,    1984,    2048,
+         65,     129,     193,     257,     321,     385,     449,     513,
+        577,     641,     705,     769,     833,      66,     130,     194,
+        258,     322,     386,     450,     514,      67,     131,     195,
+        259,     323,     387,      68,     132,     196,     260,     324,
+         69,     133,     197,     261,      70,     134,     198,     262,
+         71,     135,     199,      72,     136,     200,      73,     137,
+        201,      74,     138,      75,     139,      76,     140,      77,
+        141,      78,     142,      79,     143,      80,     144,      81,
+        145,      82,     146,      83,     147,      84,     148,      85,
+        149,      86,     150,      87,      88,    4160,    4224,    4288,
+        4352,   4161,    4225,    4289,    4162,    4226,    4290,    4163,
+        4227,   4291,    4164,    4228,    4165,    4229,    4166,    4230,
+        4167,   4231,    4168,    4232,    4169,    4233,    4170,    4234,
+        4171,   4235,    4172,    4236,    4173,    4237,    4174,    4238,
+        4175,   4239,    4176,    4240,    4177,    4241,    4178,    4242,
+        4179,   4243,    4180,    4244,    4181,    4245,    4182,    4246,
+        4183,   4247,    4184,    4248,    4185,    4249,    4186,    4250,
+        4187,   4251,    4188,    4252,    4189,    4190, (1 << 13), (2 << 13),
+    (3 << 13)
 };
 
 /* High Rate Inter Run and Level Table (Tables 227 & 228)
  * as specified in 11.8.7
  */
-const uint8_t vc1_high_rate_inter_run_level_table[174][2] = {
+const int8_t vc1_high_rate_inter_run_level_table[174][2] = {
     {  0,  1 }, {  0,  2 }, {  0,  3 }, {  0,  4 }, {  0,  5 }, {  0,  6 }, {  0,  7 }, {  0,  8 },
     {  0,  9 }, {  0, 10 }, {  0, 11 }, {  0, 12 }, {  0, 13 }, {  0, 14 }, {  0, 15 }, {  0, 16 },
     {  0, 17 }, {  0, 18 }, {  0, 19 }, {  0, 20 }, {  0, 21 }, {  0, 22 }, {  0, 23 }, {  0, 24 },
@@ -2263,7 +2423,7 @@ const uint8_t vc1_high_rate_inter_run_level_table[174][2] = {
 /* High Rate Inter Delta Level Table (Tables 229 & 230)
  * as specified in 11.8.7
  */
-const uint8_t vc1_high_rate_inter_delta_level_table[56] = {
+const int8_t vc1_high_rate_inter_delta_level_table[56] = {
     32, 13,  8,  6,  5,  4,  4,  3,
      3,  3,  2,  2,  2,  2,  2,  2,
      2,  2,  2,  2,  2,  2,  2,  1,
@@ -2276,7 +2436,7 @@ const uint8_t vc1_high_rate_inter_delta_level_table[56] = {
 /* High Rate Inter Delta Run Table (Tables 231 & 232)
  * as specified in 11.8.7
  */
-const uint8_t vc1_high_rate_inter_delta_run_table[38] = {
+const int8_t vc1_high_rate_inter_delta_run_table[38] = {
      0, 24, 22,  9,  6,  4,  3,  2,
      2,  1,  1,  1,  1,  1,  0,  0,
      0,  0,  0,  0,  0,  0,  0,  0,
@@ -2288,7 +2448,7 @@ const uint8_t vc1_high_rate_inter_delta_run_table[38] = {
  * as specified in 11.9.1 (transposed)
  * transpose(x) { x >> 3 | (x & 7) << 3 }
  */
-const uint8_t ff_vc1_intra_8x8_normal_scan_zz_table[64] = {
+const int8_t ff_vc1_intra_8x8_normal_scan_zz_table[64] = {
      0,  1,  8, 16,  9,  2,  3, 10,
     17, 24, 32, 25, 18, 11,  4,  5,
     12,  6, 19, 26, 33, 40, 48, 41,
@@ -2301,8 +2461,9 @@ const uint8_t ff_vc1_intra_8x8_normal_scan_zz_table[64] = {
 
 /* Intra Horizontal Scan Zigzag Table (Table 234)
  * as specified in 11.9.1 (transposed)
+ * transpose(x) { x >> 3 | (x & 7) << 3 }
  */
-const uint8_t ff_vc1_intra_8x8_horiz_scan_zz_table[64] = {
+const int8_t ff_vc1_intra_8x8_horiz_scan_zz_table[64] = {
      0,  8,  1, 16, 24,  9,  2,  3,
     10, 17, 32, 40, 25, 18, 11,  4,
      5,  6, 12, 19, 26, 33, 48, 56,
@@ -2315,8 +2476,9 @@ const uint8_t ff_vc1_intra_8x8_horiz_scan_zz_table[64] = {
 
 /* Intra Vertical Scan Zigzag Table (Table 235)
  * as specified in 11.9.1 (transposed)
+ * transpose(x) { x >> 3 | (x & 7) << 3 }
  */
-const uint8_t ff_vc1_intra_8x8_vert_scan_zz_table[64] = {
+const int8_t ff_vc1_intra_8x8_vert_scan_zz_table[64] = {
      0,  1,  2,  8,  3,  4,  5,  9,
     16, 24, 17, 10, 11,  6,  7, 13,
     12, 19, 18, 25, 32, 40, 33, 26,
@@ -2329,8 +2491,9 @@ const uint8_t ff_vc1_intra_8x8_vert_scan_zz_table[64] = {
 
 /* Inter 8x8 Scan Zigzag Table (Table 236)
  * as specified in 11.9.2 (transposed)
+ * transpose(x) { x >> 3 | (x & 7) << 3 }
  */
-const uint8_t ff_vc1_inter_8x8_scan_zz_table[64] = {
+const int8_t ff_vc1_inter_8x8_scan_zz_table[64] = {
      0,  1,  8, 16,  9,  2,  3, 10,
     17, 24, 32, 25, 18, 11,  4,  5,
      6,  7, 13, 12, 19, 26, 33, 40,
@@ -2339,6 +2502,42 @@ const uint8_t ff_vc1_inter_8x8_scan_zz_table[64] = {
     50, 43, 36, 29, 30, 31, 39, 38,
     37, 44, 51, 58, 59, 52, 45, 46,
     47, 55, 54, 53, 60, 61, 62, 63
+};
+
+/* Inter 8x4 Scan Zigzag Table (Table 237)
+ * as specified in 11.9.2
+ */
+const int8_t ff_vc1_inter_8x4_scan_zz_table[32] = {
+     0,  1,  2,  8,  3,  9, 10, 16,
+     4, 11, 17, 24, 18, 12,  5, 19,
+    25, 13, 20, 26, 27,  6, 21, 28,
+    14, 22, 29,  7, 30, 15, 23, 31
+};
+
+/* Inter 4x8 Scan Zigzag Table (Table 238)
+ * as specified in 11.9.2 (adapted)
+ * adapt(x) { x & 3 | (x & 28) << 1 }
+ */
+const int8_t ff_vc1_inter_4x8_scan_zz_table[32] = {
+     0,  8,  1, 16,
+     9, 24, 17,  2,
+    32, 10, 25, 40,
+    18, 48, 33, 26,
+    56, 41, 34,  3,
+    49, 57, 11, 42,
+    19, 50, 27, 58,
+    35, 43, 51, 59
+};
+
+/* Inter 4x4 Scan Zigzag Table (Table 239)
+ * as specified in 11.9.2 (adapted)
+ * adapt(x) { x & 3 | (x & 12) << 1 }
+ */
+const int8_t ff_vc1_inter_4x4_scan_zz_table[16] = {
+     0,  8, 16,  1,
+     9, 24, 17,  2,
+    10, 18, 25,  3,
+    11, 26, 19, 27
 };
 
 /* P Interlaced field picture MV predictor scaling values (Table 114) */

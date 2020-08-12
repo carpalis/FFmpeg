@@ -45,15 +45,22 @@
 //    MB_LEFT,
 //};
 
-enum BlockIndex {
-    BLOCK_Y0,
-    BLOCK_Y1,
-    BLOCK_Y2,
-    BLOCK_Y3,
-    BLOCK_CB,
-    BLOCK_CR
-};
+//enum BlockIndex {
+//    BLOCK_Y0,
+//    BLOCK_Y1,
+//    BLOCK_Y2,
+//    BLOCK_Y3,
+//    BLOCK_CB,
+//    BLOCK_CR
+//};
 
+//enum BlockType {
+//    BLOCK_INTRA,
+//    BLOCK_INTER
+//};
+
+// Do not change carelessly: the enum values are used
+// implicitly in function vc1_decode_intra_ac
 enum PredictionDirection {
     PRED_DIR_TOP,
     PRED_DIR_LEFT
@@ -65,8 +72,20 @@ enum PictureComponent {
     COMPONENT_MAX
 };
 
-/** Quantizer Specifier */
-//@{
+/* Transform Type (Table 53)
+ * as specified in 7.1.1.41
+ */
+enum TransformType {
+    TT_8x8_new,
+    TT_8x4_new,
+    TT_4x8_new,
+    TT_4x4_new,
+    TT_NONE
+};
+
+/* Quantizer Specifier (Table 259)
+ * as specified in J.1.19
+ */
 enum Quantizer {
     QUANTIZER_IMPLICIT,    // frame level implicit
     QUANTIZER_EXPLICIT,    // frame level explicit
@@ -211,14 +230,11 @@ enum Imode {
 
 typedef struct VC1ACCodingSet {
     VLC *index_vlc;
-    uint8_t (*run_level_table)[2];
-    uint8_t *delta_level_table;
-    uint8_t *delta_run_table;
-    uint8_t start_index_of_last;
-    uint8_t escape_index;
-    uint8_t delta_level_idx_of_last;
-    uint8_t delta_run_idx_of_last;
-    uint8_t max_depth;
+    const int8_t *delta_level_table;
+    const int8_t *delta_run_table;
+    int8_t delta_level_idx_of_last;
+    int8_t delta_run_idx_of_last;
+    int8_t max_depth;
 } VC1ACCodingSet;
 
 #define VC1SeqCtx_PROFILE \
@@ -330,9 +346,10 @@ typedef struct VC1PictCtx {
     \
     uint8_t pquant; \
     uint8_t dquant_inframe; \
-    uint8_t (*zz_8x8[3])[64]; \
-    uint8_t ac_level_code_size; \
-    uint8_t ac_run_code_size; \
+    const int8_t (*zz_8x8[3])[64]; \
+    int8_t ac_level_code_size; \
+    int8_t ac_run_code_size; \
+    int8_t tt; \
     ;
 
 typedef struct VC1SimplePictCtx {
@@ -390,25 +407,23 @@ typedef struct VC1StoredBlkCtx {
     int16_t dc_pred;
     int16_t ac_pred_top[7];
     int16_t ac_pred_left[7];
-    uint8_t avail;
-    uint8_t coded;
+    int8_t avail;
+    int8_t coded;
 } VC1StoredBlkCtx;
 
 typedef struct VC1StoredMBCtx {
 } VC1StoredMBCtx;
 
 #define VC1BlkCtx_COMMON \
-    VC1StoredBlkCtx *curr_blkctx; \
-    VC1StoredBlkCtx *top_blkctx; \
     VC1ACCodingSet *ac_coding_set; \
-    int16_t (*block)[64]; \
-    uint8_t (*zz)[64]; \
-    uint8_t *ac_level_code_size; \
-    uint8_t *ac_run_code_size; \
-    uint8_t component; \
-    uint8_t cbpcy; \
-    uint8_t use_ac_pred; \
-    uint8_t esc_mode3_vlc; \
+    int16_t *block; \
+    const int8_t *zz; \
+    int8_t *ac_level_code_size; \
+    int8_t *ac_run_code_size; \
+    int8_t use_ac_pred; \
+    int8_t esc_mode3_vlc; \
+    int8_t double_quant; \
+    int8_t quant_scale; \
     ;
 
 typedef struct VC1BlkCtx {
@@ -418,56 +433,56 @@ typedef struct VC1BlkCtx {
 typedef struct VC1IntraBlkCtx {
     VC1BlkCtx_COMMON;
 
-    uint8_t (*(*zz_8x8)[3])[64];
+    VC1StoredBlkCtx *curr_blkctx;
+    VC1StoredBlkCtx *top_blkctx;
+    const int8_t (*(*zz_8x8)[3])[64];
     VLC *dc_diff_vlc;
-    uint8_t mquant;
-    uint8_t halfqp;
-    int8_t double_quant;
-    int8_t quant_scale;
-    uint8_t fasttx;
-    uint8_t pred_dir;
-    uint8_t pred_blk_sh;
-    uint8_t use_cbpcy_pred;
+    int8_t mquant;
+    int8_t fasttx;
+    int8_t pred_dir;
+    int8_t use_cbpcy_pred;
+    int8_t component;
+    uint8_t cbpcy;
 } VC1IntraBlkCtx;
 
+typedef struct VC1InterBlkCtx {
+    VC1BlkCtx_COMMON;
+} VC1InterBlkCtx;
+
 typedef struct VC1MBCtx {
-    VLC (*dc_diff_vlc)[COMPONENT_MAX];
+    VLC *dc_diff_vlc;
     VC1ACCodingSet ac_coding_set[COMPONENT_MAX];
     VLC *cbpcy_vlc;
 
-    uint8_t cbpcy;
-    uint8_t acpred;
-
-    uint8_t mquant;
+    int8_t mquant;
     VC1StoredBlkCtx *curr_sblkctx, *top_sblkctx;
-    uint16_t y_curr_blkidx;
-    uint16_t c_curr_blkidx;
-    uint8_t first_slice_line;
+    int16_t y_curr_blkidx;
+    int16_t c_curr_blkidx;
+    int8_t first_slice_line;
 } VC1MBCtx;
 
 typedef struct VC1IMBCtx {
-    VLC (*dc_diff_vlc)[COMPONENT_MAX];
+    VLC *dc_diff_vlc;
     VC1ACCodingSet ac_coding_set[COMPONENT_MAX];
     VLC *cbpcy_vlc;
 
+    int8_t mquant;
     VC1StoredBlkCtx *curr_sblkctx, *top_sblkctx;
-    uint16_t y_curr_blkidx;
-    uint16_t c_curr_blkidx;
-    uint8_t first_slice_line;
+    int16_t y_curr_blkidx;
+    int16_t c_curr_blkidx;
+    int8_t first_slice_line;
 } VC1IMBCtx;
 
 typedef struct VC1PMBCtx {
-    VLC (*dc_diff_vlc)[COMPONENT_MAX];
+    VLC *dc_diff_vlc;
     VC1ACCodingSet ac_coding_set[COMPONENT_MAX];
     VLC *cbpcy_vlc;
 
-    uint8_t acpred;
-
-    uint8_t mquant;
+    int8_t mquant;
     VC1StoredBlkCtx *curr_sblkctx, *top_sblkctx;
-    uint16_t y_curr_blkidx;
-    uint16_t c_curr_blkidx;
-    uint8_t first_slice_line;
+    int16_t y_curr_blkidx;
+    int16_t c_curr_blkidx;
+    int8_t first_slice_line;
 } VC1PMBCtx;
 
 /** The VC1 Context
