@@ -326,30 +326,36 @@ static av_cold int vc1_init_stored_blk_ctx(VC1Context *v)
     MpegEncContext *s = &v->s;
 
     // TODO: size array to MAX_CODED_WIDTH
-    v->s_blkctx_base = av_malloc(sizeof(VC1StoredBlkCtx) * (s->mb_width + 1) * 12);
+    v->s_blkctx_base = av_malloc(sizeof(VC1StoredBlkCtx) * (12 * s->mb_width + 18));
     if (!v->s_blkctx_base)
         return AVERROR(ENOMEM);
 
-    v->s_blkctx[0] = v->s_blkctx_base + 4;
-    v->s_blkctx[1] = v->s_blkctx_base + (s->mb_width + 1) * 6 + 4;
-    v->c_blkidx_start = s->mb_width * 4 + 2;
+    v->s_blkctx[0] = v->s_blkctx_base + 6;
+    v->s_blkctx[1] = v->s_blkctx_base + 6 * s->mb_width + 15;
+    v->c_blkidx_start = s->mb_width * 4 + 3;
 
     (v->s_blkctx[1])[v->c_blkidx_start - 1] =
     (v->s_blkctx[1])[v->c_blkidx_start - 2] =
+    (v->s_blkctx[1])[v->c_blkidx_start - 3] =
     (v->s_blkctx[1])[-1] =
     (v->s_blkctx[1])[-2] =
     (v->s_blkctx[1])[-3] =
     (v->s_blkctx[1])[-4] =
+    (v->s_blkctx[1])[-5] =
+    (v->s_blkctx[1])[-6] =
     (v->s_blkctx[0])[v->c_blkidx_start - 1] =
     (v->s_blkctx[0])[v->c_blkidx_start - 2] =
+    (v->s_blkctx[0])[v->c_blkidx_start - 3] =
     (v->s_blkctx[0])[-1] =
     (v->s_blkctx[0])[-2] =
     (v->s_blkctx[0])[-3] =
     (v->s_blkctx[0])[-4] =
+    (v->s_blkctx[0])[-5] =
+    (v->s_blkctx[0])[-6] =
         (VC1StoredBlkCtx){
             .ac_pred_top = { 0 },
             .ac_pred_left = { 0 },
-            .coded = 0
+            .is_coded = 0
         };
 
     return 0;
@@ -699,6 +705,18 @@ av_cold int ff_vc1_decode_end(AVCodecContext *avctx)
     ff_free_vlc(&v->ac_coding_vlc[CS_HIGH_MOTION][COMPONENT_CHROMA]);
     ff_free_vlc(&v->ac_coding_vlc[CS_MID_RATE][COMPONENT_LUMA]);
     ff_free_vlc(&v->ac_coding_vlc[CS_MID_RATE][COMPONENT_CHROMA]);
+
+    ff_free_vlc(&v->ttmb_vlc[0]);
+    ff_free_vlc(&v->ttmb_vlc[1]);
+    ff_free_vlc(&v->ttmb_vlc[2]);
+
+    ff_free_vlc(&v->ttblk_vlc[0]);
+    ff_free_vlc(&v->ttblk_vlc[1]);
+    ff_free_vlc(&v->ttblk_vlc[2]);
+
+    ff_free_vlc(&v->subblkpat_vlc[0]);
+    ff_free_vlc(&v->subblkpat_vlc[1]);
+    ff_free_vlc(&v->subblkpat_vlc[2]);
 
     return 0;
 }

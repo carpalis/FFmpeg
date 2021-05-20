@@ -1125,6 +1125,138 @@ const uint8_t ff_vc1_mvmode2_table[2][4] = {
     }
 };
 
+/* High Rate TTMB VLC Table (Table 54)
+ * as specified in 7.1.3.10
+ */
+const uint16_t ff_vc1_high_rate_ttmb_codes[16] = {
+       3,   46,   95,    0,   22,   21,    1,    4,
+      20,  753,  377,  379, 3008, 3009, 1505,  378
+};
+
+const uint8_t ff_vc1_high_rate_ttmb_bits[16] = {
+       2,    6,    7,    2,    5,    5,    2,    3,
+       5,   10,    9,    9,   12,   12,   11,    9
+};
+
+const uint8_t ff_vc1_high_rate_ttmb_symbols[16] = {
+      15,   35,   44,   47,   69,   74,   79,   96,
+      31,   51,   60,   63,   85,   90,   95,  112
+};
+
+/* Medium Rate TTMB VLC Table (Table 55)
+ * as specified in 7.1.3.10
+ */
+const uint8_t ff_vc1_med_rate_ttmb_codes[16] = {
+      6,   6,   3,   7,  15,  14,   0,   2,
+      2,  20,  17,  11,   9,  33,  21,  32
+};
+
+const uint8_t ff_vc1_med_rate_ttmb_bits[16] = {
+      3,   4,   4,   4,   4,   4,   3,   3,
+      2,   7,   7,   6,   6,   8,   7,   8
+};
+
+const uint8_t ff_vc1_med_rate_ttmb_symbols[16] = {
+     15,  35,  44,  47,  69,  74,  79,  96,
+     31,  51,  60,  63,  85,  90,  95, 112
+};
+
+/* Low Rate TTMB VLC Table (Table 56)
+ * as specified in 7.1.3.10
+ */
+const uint16_t ff_vc1_low_rate_ttmb_codes[16] = {
+      6,   0,  14,   5,   2,   3,   3,  15,
+      2, 129,  33,   9, 257,  65,  17, 256
+};
+
+const uint8_t ff_vc1_low_rate_ttmb_bits[16] = {
+      3,   3,   4,   5,   3,   3,   4,   4,
+      2,  10,   8,   6,  11,   9,   7,  11
+};
+
+const uint8_t ff_vc1_low_rate_ttmb_symbols[16] = {
+     15,  35,  44,  47,  69,  74,  79,  96,
+     31,  51,  60,  63,  85,  90,  95, 112
+};
+
+/* High Rate TTBLK VLC Table (Table 62)
+ * as specified in 7.1.4.16
+ */
+const uint8_t ff_vc1_high_rate_ttblk_codes[8] = {
+     0,  1,  3,  5, 16, 17, 18, 19
+};
+
+const uint8_t ff_vc1_high_rate_ttblk_bits[8] = {
+     2,  2,  2,  3,  5,  5,  5,  5
+};
+
+const uint8_t ff_vc1_high_rate_ttblk_symbols[8] = {
+    47, 79, 15, 96, 44, 35, 69, 74
+};
+
+/* Medium Rate TTBLK VLC Table (Table 63)
+ * as specified in 7.1.4.16
+ */
+const uint8_t ff_vc1_med_rate_ttblk_codes[8] = {
+     3,  0,  1,  2,  3,  5,  8,  9
+};
+
+const uint8_t ff_vc1_med_rate_ttblk_bits[8] = {
+     2,  3,  3,  3,  3,  3,  4,  4
+};
+
+const uint8_t ff_vc1_med_rate_ttblk_symbols[8] = {
+    15, 69, 74, 96, 47, 79, 35, 44
+};
+
+/* Low Rate TTBLK VLC Table (Table 64)
+ * as specified in 7.1.4.16
+ */
+const uint8_t ff_vc1_low_rate_ttblk_codes[8] = {
+     1,  0,  1,  4,  6,  7, 10, 11
+};
+
+const uint8_t ff_vc1_low_rate_ttblk_bits[8] = {
+     2,  3,  3,  3,  3,  3,  4,  4
+};
+
+const uint8_t ff_vc1_low_rate_ttblk_symbols[8] = {
+    15, 79, 96, 35, 69, 74, 47, 44
+};
+
+/* High Rate SUBBLKPAT VLC Table (Table 65)
+ * as specified in 7.1.4.17
+ */
+const uint8_t ff_vc1_high_rate_subblkpat_codes[15] = {
+    14, 12,  7, 11,  9, 26,  2, 10, 27,  8,  0,  6,  1, 15,  1
+};
+
+const uint8_t ff_vc1_high_rate_subblkpat_bits[15] = {
+     5,  5,  5,  5,  5,  6,  4,  5,  6,  5,  4,  5,  4,  5,  1
+};
+
+/* Medium Rate SUBBLKPAT VLC Table (Table 66)
+ * as specified in 7.1.4.17
+ */
+const uint8_t ff_vc1_med_rate_subblkpat_codes[15] = {
+    14,  0,  8, 15, 10,  4, 23, 13,  5,  9, 25,  3, 24, 22,  1
+};
+
+const uint8_t ff_vc1_med_rate_subblkpat_bits[15] = {
+     4,  3,  4,  4,  4,  5,  5,  4,  5,  4,  5,  4,  5,  5,  2
+};
+
+/* Low Rate SUBBLKPAT VLC Table (Table 67)
+ * as specified in 7.1.4.17
+ */
+const uint8_t ff_vc1_low_rate_subblkpat_codes[15] = {
+     5,  6,  2,  2,  8,  0, 28,  3,  1,  3, 29,  1, 19, 18, 15
+};
+
+const uint8_t ff_vc1_low_rate_subblkpat_bits[15] = {
+     3,  3,  4,  3,  4,  5,  5,  3,  5,  4,  5,  4,  5,  5,  4
+};
+
 /* MQUANT to DCStepSize as specified in 8.1.3.3 */
 const int8_t ff_vc1_dc_scale_table[32] = {
      0,  2,  4,  8,  8,  8,  9,  9, 10, 10, 11, 11, 12, 12, 13, 13,

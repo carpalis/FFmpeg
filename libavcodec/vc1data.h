@@ -206,6 +206,66 @@ extern const uint8_t ff_vc1_mvmode_table[2][5];
 /* MVMODE2 (Tables 49 & 50) as specified in 7.1.1.33 */
 extern const uint8_t ff_vc1_mvmode2_table[2][4];
 
+/* High Rate TTMB VLC Table (Table 54)
+ * as specified in 7.1.3.10
+ */
+extern const uint16_t ff_vc1_high_rate_ttmb_codes[16];
+extern const uint8_t ff_vc1_high_rate_ttmb_bits[16];
+extern const uint8_t ff_vc1_high_rate_ttmb_symbols[16];
+
+/* Medium Rate TTMB VLC Table (Table 55)
+ * as specified in 7.1.3.10
+ */
+extern const uint8_t ff_vc1_med_rate_ttmb_codes[16];
+extern const uint8_t ff_vc1_med_rate_ttmb_bits[16];
+extern const uint8_t ff_vc1_med_rate_ttmb_symbols[16];
+
+/* Low Rate TTMB VLC Table (Table 56)
+ * as specified in 7.1.3.10
+ */
+extern const uint16_t ff_vc1_low_rate_ttmb_codes[16];
+extern const uint8_t ff_vc1_low_rate_ttmb_bits[16];
+extern const uint8_t ff_vc1_low_rate_ttmb_symbols[16];
+
+/* High Rate TTBLK VLC Table (Table 62)
+ * as specified in 7.1.4.16
+ */
+extern const uint8_t ff_vc1_high_rate_ttblk_codes[8];
+extern const uint8_t ff_vc1_high_rate_ttblk_bits[8];
+extern const uint8_t ff_vc1_high_rate_ttblk_symbols[8];
+
+/* Medium Rate TTBLK VLC Table (Table 63)
+ * as specified in 7.1.4.16
+ */
+extern const uint8_t ff_vc1_med_rate_ttblk_codes[8];
+extern const uint8_t ff_vc1_med_rate_ttblk_bits[8];
+extern const uint8_t ff_vc1_med_rate_ttblk_symbols[8];
+
+/* Low Rate TTBLK VLC Table (Table 64)
+ * as specified in 7.1.4.16
+ */
+extern const uint8_t ff_vc1_low_rate_ttblk_codes[8];
+extern const uint8_t ff_vc1_low_rate_ttblk_bits[8];
+extern const uint8_t ff_vc1_low_rate_ttblk_symbols[8];
+
+/* High Rate SUBBLKPAT VLC Table (Table 65)
+ * as specified in 7.1.4.17
+ */
+extern const uint8_t ff_vc1_high_rate_subblkpat_codes[15];
+extern const uint8_t ff_vc1_high_rate_subblkpat_bits[15];
+
+/* Medium Rate SUBBLKPAT VLC Table (Table 66)
+ * as specified in 7.1.4.17
+ */
+extern const uint8_t ff_vc1_med_rate_subblkpat_codes[15];
+extern const uint8_t ff_vc1_med_rate_subblkpat_bits[15];
+
+/* Low Rate SUBBLKPAT VLC Table (Table 67)
+ * as specified in 7.1.4.17
+ */
+extern const uint8_t ff_vc1_low_rate_subblkpat_codes[15];
+extern const uint8_t ff_vc1_low_rate_subblkpat_bits[15];
+
 /* MQUANT to DCStepSize as specified in 8.1.3.3 */
 extern const int8_t ff_vc1_dc_scale_table[32];
 

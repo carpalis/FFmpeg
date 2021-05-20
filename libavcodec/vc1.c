@@ -473,6 +473,59 @@ void vc1_init_sequence_context_smc(VC1Context *v)
                            ff_vc1_mid_rate_inter_index_symbols, 2, 2, 0);
     }
 
+    if (v->ttmb_vlc[0].table == NULL) {
+        ff_init_vlc_sparse(&v->ttmb_vlc[0], 7, 16,
+                           ff_vc1_high_rate_ttmb_bits, 1, 1,
+                           ff_vc1_high_rate_ttmb_codes, 2, 2,
+                           ff_vc1_high_rate_ttmb_symbols, 1, 1, 0);
+    }
+    if (v->ttmb_vlc[1].table == NULL) {
+        ff_init_vlc_sparse(&v->ttmb_vlc[1], 7, 16,
+                           ff_vc1_med_rate_ttmb_bits, 1, 1,
+                           ff_vc1_med_rate_ttmb_codes, 1, 1,
+                           ff_vc1_med_rate_ttmb_symbols, 1, 1, 0);
+    }
+    if (v->ttmb_vlc[2].table == NULL) {
+        ff_init_vlc_sparse(&v->ttmb_vlc[2], 7, 16,
+                           ff_vc1_low_rate_ttmb_bits, 1, 1,
+                           ff_vc1_low_rate_ttmb_codes, 2, 2,
+                           ff_vc1_low_rate_ttmb_symbols, 1, 1, 0);
+    }
+
+    if (v->ttblk_vlc[0].table == NULL) {
+        ff_init_vlc_sparse(&v->ttblk_vlc[0], 5, 8,
+                           ff_vc1_high_rate_ttblk_bits, 1, 1,
+                           ff_vc1_high_rate_ttblk_codes, 1, 1,
+                           ff_vc1_high_rate_ttblk_symbols, 1, 1, 0);
+    }
+    if (v->ttblk_vlc[1].table == NULL) {
+        ff_init_vlc_sparse(&v->ttblk_vlc[1], 5, 8,
+                           ff_vc1_med_rate_ttblk_bits, 1, 1,
+                           ff_vc1_med_rate_ttblk_codes, 1, 1,
+                           ff_vc1_med_rate_ttblk_symbols, 1, 1, 0);
+    }
+    if (v->ttblk_vlc[2].table == NULL) {
+        ff_init_vlc_sparse(&v->ttblk_vlc[2], 5, 8,
+                           ff_vc1_low_rate_ttblk_bits, 1, 1,
+                           ff_vc1_low_rate_ttblk_codes, 1, 1,
+                           ff_vc1_low_rate_ttblk_symbols, 1, 1, 0);
+    }
+
+    if (v->subblkpat_vlc[0].table == NULL)
+        init_vlc(&v->subblkpat_vlc[0], 6, 15,
+                 ff_vc1_high_rate_subblkpat_bits, 1, 1,
+                 ff_vc1_high_rate_subblkpat_codes, 1, 1, 0);
+
+    if (v->subblkpat_vlc[1].table == NULL)
+        init_vlc(&v->subblkpat_vlc[1], 6, 15,
+                 ff_vc1_med_rate_subblkpat_bits, 1, 1,
+                 ff_vc1_med_rate_subblkpat_codes, 1, 1, 0);
+
+    if (v->subblkpat_vlc[2].table == NULL)
+        init_vlc(&v->subblkpat_vlc[2], 6, 15,
+                 ff_vc1_low_rate_subblkpat_bits, 1, 1,
+                 ff_vc1_low_rate_subblkpat_codes, 1, 1, 0);
+
     switch (v->seq->profile) {
     case PROFILE_SIMPLE:
         break;
@@ -506,19 +559,23 @@ void ff_vc1_init_picture_context_smc(VC1Context *v, int ptype)
     //PTYPE
     (*pict)->ptype = ptype;
     // HALFQP is only coded when PQINDEX is less than or equal to 8
+    // HALFQP defaults to zero
     ((VC1SimplePictCtx*)*pict)->halfqp = 0;
     // MVRANGE is only coded when EXTENDED_MV is equal to 1
+    // MVRANGE defaults to [-64, 63.f] x [-32, 31.f]
     ((VC1SimplePictCtx*)*pict)->mvrange = 0;
 
     // dquant_inframe is only evaluated when DQUANT is greater than 0
+    // dquant_inframe defaults to zero
     ((VC1SimplePictCtx*)*pict)->dquant_inframe = 0;
     // ac_level_code_size doubles as first_mode3 and shall be
-    // reset to zero at the beginning of a frame
+    // reset to zero at the beginning of a slice
     ((VC1SimplePictCtx*)*pict)->ac_level_code_size = 0;
 
     switch (ptype) {
     case AV_PICTURE_TYPE_I:
         // RESPIC is only coded when MULTIRES is equal to 1
+        // RESPIC defaults to zero
         ((VC1IPictCtx*)*pict)->respic = 0;
         // CBPTAB is uncoded in I-Pictures, but implied to
         // indicate the I-Picture CBPCY VLC Table
@@ -537,16 +594,29 @@ void ff_vc1_init_picture_context_smc(VC1Context *v, int ptype)
 
     case AV_PICTURE_TYPE_P:
         // RESPIC is only coded when MULTIRES is equal to 1
+        // RESPIC defaults to zero
         ((VC1PPictCtx*)*pict)->respic = 0;
         // DQUANTFRM is only coded when DQUANT is equal to 1
+        // DQUANTFRM defaults to zero
         ((VC1PPictCtx*)*pict)->dquantfrm = 0;
+        // TTFRM is only coded when VSTRANSFORM is equal to 1
+        // TTFRM defaults to 8x8 Transform
+        ((VC1PPictCtx*)*pict)->tt = TT_8x8_new << 5 | // Transform Type: 8x8
+                                    1 << 4 |          // Signal Level: Macroblock
+                                    0xf;              // Subblock Pattern
 
         ((VC1PPictCtx*)*pict)->decode_header = vc1_decode_p_picture_header;
         break;
 
     case AV_PICTURE_TYPE_B:
         // DQUANTFRM is only coded when DQUANT is equal to 1
+        // DQUANTFRM defaults to zero
         ((VC1BPictCtx*)*pict)->dquantfrm = 0;
+        // TTFRM is only coded when VSTRANSFORM is equal to 1
+        // TTFRM defaults to 8x8 Transform
+        ((VC1BPictCtx*)*pict)->tt = TT_8x8_new << 5 | // Transform Type: 8x8
+                                    1 << 4 |          // Signal Level: Macroblock
+                                    0xf;              // Subblock Pattern
 
         ((VC1BPictCtx*)*pict)->decode_header = vc1_decode_b_picture_header;
         break;
@@ -564,6 +634,13 @@ void vc1_update_picture_context_smc(VC1Context *v)
 {
     VC1SimpleSeqCtx *simple_seq = (VC1SimpleSeqCtx*)v->seq;
     VC1SimplePictCtx *simple_pict = (VC1SimplePictCtx*)v->pict;
+    VC1PPictCtx *p_pict = (VC1PPictCtx*)v->pict;
+    VC1BPictCtx *b_pict = (VC1BPictCtx*)v->pict;
+
+    //PQUANT
+    v->mbctx.ttmb_vlc = &v->ttmb_vlc[(simple_pict->pquant > 4) + (simple_pict->pquant > 12)];
+    v->mbctx.ttblk_vlc = &v->ttblk_vlc[(simple_pict->pquant > 4) + (simple_pict->pquant > 12)];
+    v->mbctx.subblkpat_vlc = &v->subblkpat_vlc[(simple_pict->pquant > 4) + (simple_pict->pquant > 12)];
 
     // PQUANTIZER
     switch (simple_seq->quantizer) {
@@ -599,6 +676,12 @@ void vc1_update_picture_context_smc(VC1Context *v)
 
     // CBPTAB
     v->mbctx.cbpcy_vlc = &v->new_cbpcy_vlc[simple_pict->cbptab];
+
+    // TTFRM
+    if (v->pict->ptype == AV_PICTURE_TYPE_P)
+        v->mbctx.tt = p_pict->tt;
+    else if (v->pict->ptype == AV_PICTURE_TYPE_B)
+        v->mbctx.tt = b_pict->tt;
 
     // TRANSACFRM
     v->mbctx.ac_coding_set[COMPONENT_CHROMA] = ff_vc1_ac_coding_set[simple_pict->transacfrm][COMPONENT_CHROMA];
@@ -1402,12 +1485,18 @@ int ff_vc1_decode_picture_header(VC1Context *v, GetBitContext *gb)
             p_pict->dquantfrm = v->dquantfrm;
         }
 
-        if (v->vstransform) {
+        if (simple_seq->vstransform) {
             v->ttmbf = get_bits1(gb);
             if (v->ttmbf) {
-                v->ttfrm = ff_vc1_ttfrm_to_tt[get_bits(gb, 2)];
-            } else
+                static const uint8_t ttfrm_to_tt[4] = { 31, 48, 80, 112 };
+
+                p_pict->tt = get_bits(gb, 2); // TTFRM
+                v->ttfrm = ff_vc1_ttfrm_to_tt[p_pict->tt];
+                p_pict->tt = ttfrm_to_tt[p_pict->tt];
+            } else {
                 v->ttfrm = 0; //FIXME Is that so ?
+                p_pict->tt = 0;
+            }
         } else {
             v->ttmbf = 1;
             v->ttfrm = TT_8X8;
@@ -1442,12 +1531,18 @@ int ff_vc1_decode_picture_header(VC1Context *v, GetBitContext *gb)
             b_pict->dquantfrm = v->dquantfrm;
         }
 
-        if (v->vstransform) {
+        if (simple_seq->vstransform) {
             v->ttmbf = get_bits1(gb);
             if (v->ttmbf) {
-                v->ttfrm = ff_vc1_ttfrm_to_tt[get_bits(gb, 2)];
-            } else
+                static const uint8_t ttfrm_to_tt[4] = { 31, 48, 80, 112 };
+
+                b_pict->tt = get_bits(gb, 2); // TTFRM
+                v->ttfrm = ff_vc1_ttfrm_to_tt[b_pict->tt];
+                b_pict->tt = ttfrm_to_tt[b_pict->tt];
+            } else {
                 v->ttfrm = 0;
+                b_pict->tt = 0;
+            }
         } else {
             v->ttmbf = 1;
             v->ttfrm = TT_8X8;

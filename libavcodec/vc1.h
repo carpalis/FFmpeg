@@ -54,13 +54,11 @@
 //    BLOCK_CR
 //};
 
-//enum BlockType {
-//    BLOCK_INTRA,
-//    BLOCK_INTER
-//};
+enum BlockType {
+    BLOCK_INTER,
+    BLOCK_INTRA
+};
 
-// Do not change carelessly: the enum values are used
-// implicitly in function vc1_decode_intra_ac
 enum PredictionDirection {
     PRED_DIR_TOP,
     PRED_DIR_LEFT
@@ -80,7 +78,6 @@ enum TransformType {
     TT_8x4_new,
     TT_4x8_new,
     TT_4x4_new,
-    TT_NONE
 };
 
 /* Quantizer Specifier (Table 259)
@@ -349,7 +346,6 @@ typedef struct VC1PictCtx {
     const int8_t (*zz_8x8[3])[64]; \
     int8_t ac_level_code_size; \
     int8_t ac_run_code_size; \
-    int8_t tt; \
     ;
 
 typedef struct VC1SimplePictCtx {
@@ -388,6 +384,7 @@ typedef struct VC1PPictCtx {
     int8_t lumscale;
     int8_t lumshift;
     uint8_t dquantfrm;
+    uint8_t tt;
 } VC1PPictCtx;
 
 typedef struct VC1BPictCtx {
@@ -396,6 +393,7 @@ typedef struct VC1BPictCtx {
 
     uint8_t mvmode;
     uint8_t dquantfrm;
+    uint8_t tt;
 } VC1BPictCtx;
 
 typedef struct VC1AdvPictCtx {
@@ -407,8 +405,8 @@ typedef struct VC1StoredBlkCtx {
     int16_t dc_pred;
     int16_t ac_pred_top[7];
     int16_t ac_pred_left[7];
-    int8_t avail;
-    int8_t coded;
+    int8_t is_intra;
+    int8_t is_coded;
 } VC1StoredBlkCtx;
 
 typedef struct VC1StoredMBCtx {
@@ -417,13 +415,14 @@ typedef struct VC1StoredMBCtx {
 #define VC1BlkCtx_COMMON \
     VC1ACCodingSet *ac_coding_set; \
     int16_t *block; \
+    int8_t btype; \
     const int8_t *zz; \
     int8_t *ac_level_code_size; \
     int8_t *ac_run_code_size; \
     int8_t use_ac_pred; \
     int8_t esc_mode3_vlc; \
     int8_t double_quant; \
-    int8_t quant_scale; \
+    int8_t quant_scale;
     ;
 
 typedef struct VC1BlkCtx {
@@ -439,50 +438,71 @@ typedef struct VC1IntraBlkCtx {
     VLC *dc_diff_vlc;
     int8_t mquant;
     int8_t fasttx;
-    int8_t pred_dir;
     int8_t use_cbpcy_pred;
-    int8_t component;
     uint8_t cbpcy;
+//    int16_t default_predictor;
 } VC1IntraBlkCtx;
 
 typedef struct VC1InterBlkCtx {
     VC1BlkCtx_COMMON;
+
+    VLC *ttblk_vlc;
+    VLC *subblkpat_vlc;
+    int8_t tt;
 } VC1InterBlkCtx;
 
 typedef struct VC1MBCtx {
     VLC *dc_diff_vlc;
-    VC1ACCodingSet ac_coding_set[COMPONENT_MAX];
     VLC *cbpcy_vlc;
+    VLC *ttmb_vlc;
+    VLC *ttblk_vlc;
+    VLC *subblkpat_vlc;
+    VC1ACCodingSet ac_coding_set[COMPONENT_MAX];
 
     int8_t mquant;
     VC1StoredBlkCtx *curr_sblkctx, *top_sblkctx;
-    int16_t y_curr_blkidx;
-    int16_t c_curr_blkidx;
+    VC1StoredBlkCtx *y_curr_sblkctx, *y_top_sblkctx;
+    VC1StoredBlkCtx *c_curr_sblkctx, *c_top_sblkctx;
+    int16_t y_curr_blkidx, c_curr_blkidx;
+    int16_t y_top_blkidx, c_top_blkidx;
     int8_t first_slice_line;
+    uint8_t tt;
 } VC1MBCtx;
 
 typedef struct VC1IMBCtx {
     VLC *dc_diff_vlc;
-    VC1ACCodingSet ac_coding_set[COMPONENT_MAX];
     VLC *cbpcy_vlc;
+    VLC *ttmb_vlc; // REMOVE: not used in I pictures
+    VLC *ttblk_vlc; // REMOVE: not used in I pictures
+    VLC *subblkpat_vlc; // REMOVE: not used in I pictures
+    VC1ACCodingSet ac_coding_set[COMPONENT_MAX];
 
     int8_t mquant;
     VC1StoredBlkCtx *curr_sblkctx, *top_sblkctx;
-    int16_t y_curr_blkidx;
-    int16_t c_curr_blkidx;
+    VC1StoredBlkCtx *y_curr_sblkctx, *y_top_sblkctx;
+    VC1StoredBlkCtx *c_curr_sblkctx, *c_top_sblkctx;
+    int16_t y_curr_blkidx, c_curr_blkidx;
+    int16_t y_top_blkidx, c_top_blkidx;
     int8_t first_slice_line;
+    uint8_t tt; // REMOVE: not used in I pictures
 } VC1IMBCtx;
 
 typedef struct VC1PMBCtx {
     VLC *dc_diff_vlc;
-    VC1ACCodingSet ac_coding_set[COMPONENT_MAX];
     VLC *cbpcy_vlc;
+    VLC *ttmb_vlc;
+    VLC *ttblk_vlc;
+    VLC *subblkpat_vlc;
+    VC1ACCodingSet ac_coding_set[COMPONENT_MAX];
 
     int8_t mquant;
     VC1StoredBlkCtx *curr_sblkctx, *top_sblkctx;
-    int16_t y_curr_blkidx;
-    int16_t c_curr_blkidx;
+    VC1StoredBlkCtx *y_curr_sblkctx, *y_top_sblkctx;
+    VC1StoredBlkCtx *c_curr_sblkctx, *c_top_sblkctx;
+    int16_t y_curr_blkidx, c_curr_blkidx;
+    int16_t y_top_blkidx, c_top_blkidx;
     int8_t first_slice_line;
+    uint8_t tt;
 } VC1PMBCtx;
 
 /** The VC1 Context
@@ -510,6 +530,10 @@ struct VC1Context{
 
     // VLC cbpcy_vlc[CBPTAB]
     VLC new_cbpcy_vlc[5];
+
+    VLC ttmb_vlc[3];
+    VLC ttblk_vlc[3];
+    VLC subblkpat_vlc[3];
 
     // VLC dc_differential_vlc[TRANSDCTAB][PictureComponent]
     VLC dc_diff_vlc[2][COMPONENT_MAX];
