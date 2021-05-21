@@ -414,7 +414,6 @@ typedef struct VC1StoredMBCtx {
 
 #define VC1BlkCtx_COMMON \
     VC1ACCodingSet *ac_coding_set; \
-    int16_t *block; \
     int8_t btype; \
     const int8_t *zz; \
     int8_t *ac_level_code_size; \
@@ -432,15 +431,17 @@ typedef struct VC1BlkCtx {
 typedef struct VC1IntraBlkCtx {
     VC1BlkCtx_COMMON;
 
-    VC1StoredBlkCtx *curr_blkctx;
-    VC1StoredBlkCtx *top_blkctx;
+    VC1StoredBlkCtx *s_blkctx;
     const int8_t (*(*zz_8x8)[3])[64];
     VLC *dc_diff_vlc;
+    int16_t curr_sblkidx;
+    int16_t top_sblkidx;
+    int16_t topleft_sblkidx;
+    int16_t left_sblkidx;
     int8_t mquant;
     int8_t fasttx;
     int8_t use_cbpcy_pred;
     uint8_t cbpcy;
-//    int16_t default_predictor;
 } VC1IntraBlkCtx;
 
 typedef struct VC1InterBlkCtx {
@@ -460,12 +461,9 @@ typedef struct VC1MBCtx {
     VC1ACCodingSet ac_coding_set[COMPONENT_MAX];
 
     int8_t mquant;
-    VC1StoredBlkCtx *curr_sblkctx, *top_sblkctx;
-    VC1StoredBlkCtx *y_curr_sblkctx, *y_top_sblkctx;
-    VC1StoredBlkCtx *c_curr_sblkctx, *c_top_sblkctx;
-    int16_t y_curr_blkidx, c_curr_blkidx;
-    int16_t y_top_blkidx, c_top_blkidx;
-    int8_t first_slice_line;
+    VC1StoredBlkCtx *s_blkctx;
+    int top_sblkidx;
+    int curr_sblkidx;
     uint8_t tt;
 } VC1MBCtx;
 
@@ -478,12 +476,9 @@ typedef struct VC1IMBCtx {
     VC1ACCodingSet ac_coding_set[COMPONENT_MAX];
 
     int8_t mquant;
-    VC1StoredBlkCtx *curr_sblkctx, *top_sblkctx;
-    VC1StoredBlkCtx *y_curr_sblkctx, *y_top_sblkctx;
-    VC1StoredBlkCtx *c_curr_sblkctx, *c_top_sblkctx;
-    int16_t y_curr_blkidx, c_curr_blkidx;
-    int16_t y_top_blkidx, c_top_blkidx;
-    int8_t first_slice_line;
+    VC1StoredBlkCtx *s_blkctx;
+    int top_sblkidx;
+    int curr_sblkidx;
     uint8_t tt; // REMOVE: not used in I pictures
 } VC1IMBCtx;
 
@@ -496,12 +491,9 @@ typedef struct VC1PMBCtx {
     VC1ACCodingSet ac_coding_set[COMPONENT_MAX];
 
     int8_t mquant;
-    VC1StoredBlkCtx *curr_sblkctx, *top_sblkctx;
-    VC1StoredBlkCtx *y_curr_sblkctx, *y_top_sblkctx;
-    VC1StoredBlkCtx *c_curr_sblkctx, *c_top_sblkctx;
-    int16_t y_curr_blkidx, c_curr_blkidx;
-    int16_t y_top_blkidx, c_top_blkidx;
-    int8_t first_slice_line;
+    VC1StoredBlkCtx *s_blkctx;
+    int top_sblkidx;
+    int curr_sblkidx;
     uint8_t tt;
 } VC1PMBCtx;
 
@@ -525,8 +517,7 @@ struct VC1Context{
 
     VC1MBCtx mbctx;
 
-    VC1StoredBlkCtx *s_blkctx_base, *s_blkctx[2];
-    int16_t c_blkidx_start;
+    VC1StoredBlkCtx *s_blkctx_base;
 
     // VLC cbpcy_vlc[CBPTAB]
     VLC new_cbpcy_vlc[5];

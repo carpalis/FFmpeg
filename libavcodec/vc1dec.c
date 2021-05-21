@@ -330,28 +330,9 @@ static av_cold int vc1_init_stored_blk_ctx(VC1Context *v)
     if (!v->s_blkctx_base)
         return AVERROR(ENOMEM);
 
-    v->s_blkctx[0] = v->s_blkctx_base + 6;
-    v->s_blkctx[1] = v->s_blkctx_base + 6 * s->mb_width + 15;
-    v->c_blkidx_start = s->mb_width * 4 + 3;
+    v->mbctx.s_blkctx = v->s_blkctx_base + 6;
 
-    (v->s_blkctx[1])[v->c_blkidx_start - 1] =
-    (v->s_blkctx[1])[v->c_blkidx_start - 2] =
-    (v->s_blkctx[1])[v->c_blkidx_start - 3] =
-    (v->s_blkctx[1])[-1] =
-    (v->s_blkctx[1])[-2] =
-    (v->s_blkctx[1])[-3] =
-    (v->s_blkctx[1])[-4] =
-    (v->s_blkctx[1])[-5] =
-    (v->s_blkctx[1])[-6] =
-    (v->s_blkctx[0])[v->c_blkidx_start - 1] =
-    (v->s_blkctx[0])[v->c_blkidx_start - 2] =
-    (v->s_blkctx[0])[v->c_blkidx_start - 3] =
-    (v->s_blkctx[0])[-1] =
-    (v->s_blkctx[0])[-2] =
-    (v->s_blkctx[0])[-3] =
-    (v->s_blkctx[0])[-4] =
-    (v->s_blkctx[0])[-5] =
-    (v->s_blkctx[0])[-6] =
+    v->mbctx.s_blkctx[-1] =
         (VC1StoredBlkCtx){
             .ac_pred_top = { 0 },
             .ac_pred_left = { 0 },
