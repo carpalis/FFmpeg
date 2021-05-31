@@ -326,11 +326,11 @@ static av_cold int vc1_init_stored_blk_ctx(VC1Context *v)
     MpegEncContext *s = &v->s;
 
     // TODO: size array to MAX_CODED_WIDTH
-    v->s_blkctx_base = av_malloc(sizeof(VC1StoredBlkCtx) * (12 * s->mb_width + 18));
+    v->s_blkctx_base = av_malloc(sizeof(VC1StoredBlkCtx) * (6 * s->mb_width + 19));
     if (!v->s_blkctx_base)
         return AVERROR(ENOMEM);
 
-    v->mbctx.s_blkctx = v->s_blkctx_base + 6;
+    v->mbctx.s_blkctx = v->s_blkctx_base + 1;
 
     v->mbctx.s_blkctx[-1] =
         (VC1StoredBlkCtx){
@@ -364,7 +364,7 @@ av_cold int ff_vc1_decode_init_alloc_tables(VC1Context *v)
         goto error;
 
     v->n_allocated_blks = s->mb_width + 2;
-    v->block            = av_malloc(sizeof(*v->block) * v->n_allocated_blks);
+    v->block = v->mbctx.block = av_malloc(sizeof(*v->block) * (v->n_allocated_blks + 1));
     v->cbp_base         = av_malloc(sizeof(v->cbp_base[0]) * 3 * s->mb_stride);
     if (!v->block || !v->cbp_base)
         goto error;

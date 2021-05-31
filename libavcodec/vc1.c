@@ -601,9 +601,9 @@ void ff_vc1_init_picture_context_smc(VC1Context *v, int ptype)
         ((VC1PPictCtx*)*pict)->dquantfrm = 0;
         // TTFRM is only coded when VSTRANSFORM is equal to 1
         // TTFRM defaults to 8x8 Transform
-        ((VC1PPictCtx*)*pict)->tt = TT_8x8_new << 5 | // Transform Type: 8x8
-                                    1 << 4 |          // Signal Level: Macroblock
-                                    0xf;              // Subblock Pattern
+        ((VC1PPictCtx*)*pict)->tt = TT_8x8_new |     // Transform Type: 8x8
+                                    SIGNALLEVEL_MB | // Signal Level: Macroblock
+                                    SUBBLOCK_ALL;    // Subblock Pattern
 
         ((VC1PPictCtx*)*pict)->decode_header = vc1_decode_p_picture_header;
         break;
@@ -614,9 +614,9 @@ void ff_vc1_init_picture_context_smc(VC1Context *v, int ptype)
         ((VC1BPictCtx*)*pict)->dquantfrm = 0;
         // TTFRM is only coded when VSTRANSFORM is equal to 1
         // TTFRM defaults to 8x8 Transform
-        ((VC1BPictCtx*)*pict)->tt = TT_8x8_new << 5 | // Transform Type: 8x8
-                                    1 << 4 |          // Signal Level: Macroblock
-                                    0xf;              // Subblock Pattern
+        ((VC1BPictCtx*)*pict)->tt = TT_8x8_new |     // Transform Type: 8x8
+                                    SIGNALLEVEL_MB | // Signal Level: Macroblock
+                                    SUBBLOCK_ALL;    // Subblock Pattern
 
         ((VC1BPictCtx*)*pict)->decode_header = vc1_decode_b_picture_header;
         break;

@@ -67,6 +67,81 @@ static inline void init_block_index(VC1Context *v)
     }
 }
 
+static inline void init_block_index_new(VC1MBCtx *mbctx)
+{
+//    static const int16_t blkidx_init[BLOCKIDX_MAX] = {  0,  2,  1,  3,  4,  5,
+//                                                       -1, -1, -1, -1,
+//                                                       -1, -1, -1,
+//                                                       -1, -1, -1, -1};
+
+        mbctx->blkidx[BLOCKIDX_T2] = -1;
+        mbctx->blkidx[BLOCKIDX_T3] = -1;
+        mbctx->blkidx[BLOCKIDX_CB_T] = -1;
+        mbctx->blkidx[BLOCKIDX_CR_T] = -1;
+        mbctx->blkidx[BLOCKIDX_LT3] = -1;
+        mbctx->blkidx[BLOCKIDX_CB_LT] = -1;
+        mbctx->blkidx[BLOCKIDX_CR_LT] = -1;
+}
+
+static inline void update_block_index(VC1MBCtx *mbctx,
+                                      int mb_width,
+                                      int i)
+{
+    int mb_idx_curr = i % (mb_width + 2);
+    int mb_x = i % mb_width;
+
+    if (mb_x) {
+        mbctx->blkidx[BLOCKIDX_L1] = mbctx->blkidx[BLOCKIDX_Y1];
+        mbctx->blkidx[BLOCKIDX_L3] = mbctx->blkidx[BLOCKIDX_Y3];
+        mbctx->blkidx[BLOCKIDX_CB_L] = mbctx->blkidx[BLOCKIDX_CB];
+        mbctx->blkidx[BLOCKIDX_CR_L] = mbctx->blkidx[BLOCKIDX_CR];
+    } else {
+        mbctx->blkidx[BLOCKIDX_L1] = -1;
+        mbctx->blkidx[BLOCKIDX_L3] = -1;
+        mbctx->blkidx[BLOCKIDX_CB_L] = -1;
+        mbctx->blkidx[BLOCKIDX_CR_L] = -1;
+    }
+    if (mb_idx_curr) {
+        mbctx->blkidx[BLOCKIDX_Y0] += 6;
+        mbctx->blkidx[BLOCKIDX_Y1] += 6;
+        mbctx->blkidx[BLOCKIDX_Y2] += 6;
+        mbctx->blkidx[BLOCKIDX_Y3] += 6;
+        mbctx->blkidx[BLOCKIDX_CB] += 6;
+        mbctx->blkidx[BLOCKIDX_CR] += 6;
+    } else {
+        mbctx->blkidx[BLOCKIDX_Y0] = 0;
+        mbctx->blkidx[BLOCKIDX_Y1] = 2;
+        mbctx->blkidx[BLOCKIDX_Y2] = 1;
+        mbctx->blkidx[BLOCKIDX_Y3] = 3;
+        mbctx->blkidx[BLOCKIDX_CB] = 4;
+        mbctx->blkidx[BLOCKIDX_CR] = 5;
+    }
+
+    if (i >= mb_width) {
+        if (mb_x) {
+            mbctx->blkidx[BLOCKIDX_LT3] = mbctx->blkidx[BLOCKIDX_T3];
+            mbctx->blkidx[BLOCKIDX_CB_LT] = mbctx->blkidx[BLOCKIDX_CB_T];
+            mbctx->blkidx[BLOCKIDX_CR_LT] = mbctx->blkidx[BLOCKIDX_CR_T];
+        } else {
+            mbctx->blkidx[BLOCKIDX_LT3] = -1;
+            mbctx->blkidx[BLOCKIDX_CB_LT] = -1;
+            mbctx->blkidx[BLOCKIDX_CR_LT] = -1;
+        }
+
+        if (mb_idx_curr == mb_width) {
+            mbctx->blkidx[BLOCKIDX_T3] = 3;
+            mbctx->blkidx[BLOCKIDX_T2] = 1;
+            mbctx->blkidx[BLOCKIDX_CB_T] = 4;
+            mbctx->blkidx[BLOCKIDX_CR_T] = 5;
+        } else {
+            mbctx->blkidx[BLOCKIDX_T3] += 6;
+            mbctx->blkidx[BLOCKIDX_T2] += 6;
+            mbctx->blkidx[BLOCKIDX_CB_T] += 6;
+            mbctx->blkidx[BLOCKIDX_CR_T] += 6;
+        }
+    }
+}
+
 /** @} */ //Bitplane group
 
 static void vc1_put_blocks_clamped(VC1Context *v, int put_signed)
@@ -671,25 +746,23 @@ static int vc1_decode_ac_coeff_simple(VC1BlkCtx *blkctx,
     return i;
 }
 
-static inline void vc1_predict_intra_coeff(VC1IntraBlkCtx *blkctx,
-                                           int16_t block[64])
+static inline void vc1_predict_intra_coeff(VC1IntraBlkCtx *blkctx)
 {
-    VC1StoredBlkCtx *curr_sblkctx = blkctx->s_blkctx + blkctx->curr_sblkidx;
-    VC1StoredBlkCtx *pred_a_sblkctx = blkctx->s_blkctx + blkctx->top_sblkidx;
-    VC1StoredBlkCtx *pred_b_sblkctx = blkctx->s_blkctx + blkctx->topleft_sblkidx;
-    VC1StoredBlkCtx *pred_c_sblkctx = blkctx->s_blkctx + blkctx->left_sblkidx;
+    VC1StoredBlkCtx *curr_sblkctx = blkctx->s_blkctx + blkctx->curr_idx;
+    VC1StoredBlkCtx *pred_a_sblkctx = blkctx->s_blkctx + blkctx->top_idx;
+    VC1StoredBlkCtx *pred_b_sblkctx = blkctx->s_blkctx + blkctx->topleft_idx;
+    VC1StoredBlkCtx *pred_c_sblkctx = blkctx->s_blkctx + blkctx->left_idx;
+    int16_t *block = *(blkctx->block + blkctx->curr_idx);
     int dc_dqscale = ff_vc1_dqscale[ff_vc1_dc_scale_table[blkctx->mquant]];
-    int a_avail = pred_a_sblkctx->is_intra;
-    int b_avail = pred_b_sblkctx->is_intra;
-    int c_avail = pred_c_sblkctx->is_intra;
+    int a_avail = pred_a_sblkctx->btype == BLOCK_INTRA;
+    int b_avail = pred_b_sblkctx->btype == BLOCK_INTRA;
+    int c_avail = pred_c_sblkctx->btype == BLOCK_INTRA;
     int pred_dir;
     int a, b, c;
 
     /* B A
      * C X
      */
-
-    curr_sblkctx->is_intra = 1;
 
     /* Predict CBP and store for further prediction */
     curr_sblkctx->is_coded = !!blkctx->cbpcy;
@@ -727,10 +800,10 @@ static inline void vc1_predict_intra_coeff(VC1IntraBlkCtx *blkctx,
 }
 
 static int vc1_decode_intra_diff(VC1IntraBlkCtx *blkctx,
-                                 int16_t block[64],
                                  GetBitContext *gb)
 {
-    VC1StoredBlkCtx *curr_sblkctx = blkctx->s_blkctx + blkctx->curr_sblkidx;
+    VC1StoredBlkCtx *curr_sblkctx = blkctx->s_blkctx + blkctx->curr_idx;
+    int16_t *block = *(blkctx->block + blkctx->curr_idx);
     int mquant = blkctx->mquant;
     int double_quant = blkctx->double_quant;
     int quant_scale = blkctx->quant_scale;
@@ -791,17 +864,45 @@ static int vc1_decode_intra_diff(VC1IntraBlkCtx *blkctx,
     return 0;
 }
 
-static int vc1_decode_i_block(VC1IntraBlkCtx *blkctx,
-                              int16_t block[64],
-                              GetBitContext *gb)
+static int vc1_decode_intra_block_new(VC1MBCtx* mbctx,
+                                      VC1IntraBlkCtx *blkctx,
+                                      int curr_idx, int top_idx,
+                                      int topleft_idx, int left_idx,
+                                      GetBitContext *gb)
 {
+    VC1StoredBlkCtx *sblkctx = blkctx->s_blkctx;
+    int16_t (*block)[64] = blkctx->block;
+    int16_t curr_blkidx = mbctx->blkidx[curr_idx];
+    int16_t top_blkidx = mbctx->blkidx[top_idx];
+    int16_t topleft_blkidx = mbctx->blkidx[topleft_idx];
+    int16_t left_blkidx = mbctx->blkidx[left_idx];
     int ret;
 
-    vc1_predict_intra_coeff(blkctx, block);
+    sblkctx[curr_blkidx].btype = BLOCK_INTRA;
+    blkctx->curr_idx = curr_blkidx;
+    blkctx->top_idx = top_blkidx;
+    blkctx->topleft_idx = topleft_blkidx;
+    blkctx->left_idx = left_blkidx;
 
-    ret = vc1_decode_intra_diff(blkctx, block, gb);
+    vc1_predict_intra_coeff(blkctx);
+
+    ret = vc1_decode_intra_diff(blkctx, gb);
     if (ret < 0)
         return ret;
+
+    if (!CONFIG_GRAY || !blkctx->skip_output)
+        blkctx->vc1dsp->vc1_inv_trans_8x8(block[curr_blkidx]);
+
+    sblkctx[curr_blkidx].overlap = blkctx->use_overlap_xfrm;
+
+    if (sblkctx[curr_blkidx].overlap & sblkctx[left_blkidx].overlap) {
+        blkctx->vc1dsp->vc1_h_s_overlap(block[left_blkidx],
+                                        block[curr_blkidx],
+                                        8, 8, 1);
+        if (sblkctx[topleft_blkidx].overlap)
+            blkctx->vc1dsp->vc1_v_s_overlap(block[topleft_blkidx],
+                                            block[left_blkidx]);
+    }
 
     return 0;
 }
@@ -1394,41 +1495,52 @@ static int vc1_decode_p_block(VC1Context *v, int16_t block[64], int n,
     return pat;
 }
 
-static int vc1_decode_p_block_new(VC1Context *v, VC1InterBlkCtx *inter_blkctx, int16_t *block, int n,
-                                  uint8_t *dst, int linesize, int skip_block,
-                                  int *ttmb_out)
+static int vc1_decode_p_block_new(VC1Context *v,
+                                  VC1PMBCtx *mbctx,
+                                  VC1InterBlkCtx *inter_blkctx,
+                                  int n,
+                                  int curr_idx,
+                                  int left_idx,
+                                  int topleft_idx,
+                                  uint8_t *dst,
+                                  int linesize,
+                                  int *ttmb_out,
+                                  GetBitContext *gb)
 {
-    MpegEncContext *s = &v->s;
-    GetBitContext *gb = &s->gb;
+    VC1DSPContext *vc1dsp = inter_blkctx->vc1dsp;
+    VC1StoredBlkCtx *sblkctx = inter_blkctx->s_blkctx;
+    int16_t (*block)[64] = inter_blkctx->block;
+    int16_t curr_blkidx = mbctx->blkidx[curr_idx];
+    int16_t left_blkidx = mbctx->blkidx[left_idx];
+    int16_t topleft_blkidx = mbctx->blkidx[topleft_idx];
     int subblkpat;
     int ret;
 
     if (!inter_blkctx->tt) {
-        inter_blkctx->tt = get_vlc2(gb, inter_blkctx->ttblk_vlc->table, 5, 1);
-        if (v->seq->profile < PROFILE_ADVANCED &&
-            !((VC1SimpleSeqCtx*)v->seq)->res_rtm_flag)
-            inter_blkctx->tt &= 0x70;
+        inter_blkctx->tt = get_vlc2(gb, inter_blkctx->ttblk_vlc->table, 5, 1); // TTBLK
+        if (!inter_blkctx->res_rtm_flag)
+            inter_blkctx->tt &= ~SUBBLOCK_MASK;
     }
 
-    switch (inter_blkctx->tt >> 5 & 3) {
-    case TT_8x8_new:
+    switch ((inter_blkctx->tt & TT_MASK) >> 5) {
+    case TT_8x8_new >> 5:
         inter_blkctx->zz = ff_vc1_inter_8x8_scan_zz_table;
 
-        subblkpat = 0xf;
+        subblkpat = SUBBLOCK_ALL;
 
         ret = vc1_decode_ac_coeff_simple((VC1BlkCtx*)inter_blkctx,
-                                         block,
+                                         block[curr_blkidx],
                                          63,
                                          gb);
         if (ret < 0)
             return ret;
 
-        if (!skip_block) {
+        if (!CONFIG_GRAY || !inter_blkctx->skip_output) {
             if (ret == 1)
-                v->vc1dsp.vc1_inv_trans_8x8_dc(dst, linesize, block);
+                vc1dsp->vc1_inv_trans_8x8_dc(dst, linesize, block[curr_blkidx]);
             else {
-                v->vc1dsp.vc1_inv_trans_8x8(block);
-                s->idsp.add_pixels_clamped(block, dst, linesize);
+                vc1dsp->vc1_inv_trans_8x8(block[curr_blkidx]);
+                inter_blkctx->idsp->add_pixels_clamped(block[curr_blkidx], dst, linesize);
             }
         }
 
@@ -1436,68 +1548,68 @@ static int vc1_decode_p_block_new(VC1Context *v, VC1InterBlkCtx *inter_blkctx, i
             *ttmb_out |= TT_8X8 << (n * 4);
         break;
 
-    case TT_4x4_new:
+    case TT_4x4_new >> 5:
         inter_blkctx->zz = ff_vc1_inter_4x4_scan_zz_table;
 
-        subblkpat = get_vlc2(gb, inter_blkctx->subblkpat_vlc->table, 6, 1) + 1;
-        if (subblkpat & 8) {
+        subblkpat = get_vlc2(gb, inter_blkctx->subblkpat_vlc->table, 6, 1) + 1; // SUBBLKPAT
+        if (subblkpat & SUBBLOCK_SB0) {
             ret = vc1_decode_ac_coeff_simple((VC1BlkCtx*)inter_blkctx,
-                                             block,
+                                             block[curr_blkidx],
                                              15,
                                              gb);
             if (ret < 0)
                 return ret;
 
-            if (!skip_block) {
+            if (!CONFIG_GRAY || !inter_blkctx->skip_output) {
                 if (ret == 1)
-                    v->vc1dsp.vc1_inv_trans_4x4_dc(dst, linesize, block);
+                    vc1dsp->vc1_inv_trans_4x4_dc(dst, linesize, block[curr_blkidx]);
                 else
-                    v->vc1dsp.vc1_inv_trans_4x4(dst, linesize, block);
+                    vc1dsp->vc1_inv_trans_4x4(dst, linesize, block[curr_blkidx]);
             }
         }
-        if (subblkpat & 4) {
+        if (subblkpat & SUBBLOCK_SB1) {
             ret = vc1_decode_ac_coeff_simple((VC1BlkCtx*)inter_blkctx,
-                                             block + 4,
+                                             block[curr_blkidx] + 4,
                                              15,
                                              gb);
             if (ret < 0)
                 return ret;
 
-            if (!skip_block) {
+            if (!CONFIG_GRAY || !inter_blkctx->skip_output) {
                 if (ret == 1)
-                    v->vc1dsp.vc1_inv_trans_4x4_dc(dst + 4, linesize, block + 4);
+                    vc1dsp->vc1_inv_trans_4x4_dc(dst + 4, linesize, block[curr_blkidx] + 4);
                 else
-                    v->vc1dsp.vc1_inv_trans_4x4(dst + 4, linesize, block + 4);
+                    vc1dsp->vc1_inv_trans_4x4(dst + 4, linesize, block[curr_blkidx] + 4);
             }
         }
-        if (subblkpat & 2) {
+        if (subblkpat & SUBBLOCK_SB2) {
             ret = vc1_decode_ac_coeff_simple((VC1BlkCtx*)inter_blkctx,
-                                             block + 32,
+                                             block[curr_blkidx] + 32,
                                              15,
                                              gb);
             if (ret < 0)
                 return ret;
 
-            if (!skip_block) {
+            if (!CONFIG_GRAY || !inter_blkctx->skip_output) {
                 if (ret == 1)
-                    v->vc1dsp.vc1_inv_trans_4x4_dc(dst + 4 * linesize, linesize, block + 32);
+                    vc1dsp->vc1_inv_trans_4x4_dc(dst + 4 * linesize, linesize, block[curr_blkidx] + 32);
                 else
-                    v->vc1dsp.vc1_inv_trans_4x4(dst + 4 * linesize, linesize, block + 32);
+                    vc1dsp->vc1_inv_trans_4x4(dst + 4 * linesize, linesize, block[curr_blkidx] + 32);
             }
         }
-        if (subblkpat & 1) {
+        if (subblkpat & SUBBLOCK_SB3) {
             ret = vc1_decode_ac_coeff_simple((VC1BlkCtx*)inter_blkctx,
-                                             block + 36,
+                                             block[curr_blkidx] + 36,
                                              15,
                                              gb);
             if (ret < 0)
                 return ret;
 
-            if (!skip_block) {
+            if (!CONFIG_GRAY || !inter_blkctx->skip_output) {
                 if (ret == 1)
-                    v->vc1dsp.vc1_inv_trans_4x4_dc(dst + 4 + 4 * linesize, linesize, block + 36);
+                    vc1dsp->vc1_inv_trans_4x4_dc(dst + 4 + 4 * linesize, linesize, block[curr_blkidx] + 36);
                 else
-                    v->vc1dsp.vc1_inv_trans_4x4(dst + 4 + 4 * linesize, linesize, block + 36);
+                    vc1dsp->vc1_inv_trans_4x4(dst + 4 + 4 * linesize, linesize, block[curr_blkidx] + 36);
             }
         }
 
@@ -1505,43 +1617,43 @@ static int vc1_decode_p_block_new(VC1Context *v, VC1InterBlkCtx *inter_blkctx, i
             *ttmb_out |= TT_4X4 << (n * 4);
         break;
 
-    case TT_8x4_new:
+    case TT_8x4_new >> 5:
         inter_blkctx->zz = ff_vc1_inter_8x4_scan_zz_table;
 
-        subblkpat = inter_blkctx->tt & 0xf;
+        subblkpat = inter_blkctx->tt & SUBBLOCK_MASK;
         if (!subblkpat) {
-            static const uint8_t subblkpat_8x4[3] = { 15, 3, 12 };
+            static const uint8_t subblkpat_8x4[3] = { SUBBLOCK_BOTH, SUBBLOCK_BOTTOM, SUBBLOCK_TOP };
 
-            subblkpat = subblkpat_8x4[decode012(gb)];
+            subblkpat = subblkpat_8x4[decode012(gb)]; // SUBBLKPAT
         }
-        if (subblkpat & 0xc) {
+        if (subblkpat & SUBBLOCK_TOP) {
             ret = vc1_decode_ac_coeff_simple((VC1BlkCtx*)inter_blkctx,
-                                             block,
+                                             block[curr_blkidx],
                                              31,
                                              gb);
             if (ret < 0)
                 return ret;
 
-            if (!skip_block) {
+            if (!CONFIG_GRAY || !inter_blkctx->skip_output) {
                 if (ret == 1)
-                    v->vc1dsp.vc1_inv_trans_8x4_dc(dst, linesize, block);
+                    vc1dsp->vc1_inv_trans_8x4_dc(dst, linesize, block[curr_blkidx]);
                 else
-                    v->vc1dsp.vc1_inv_trans_8x4(dst, linesize, block);
+                    vc1dsp->vc1_inv_trans_8x4(dst, linesize, block[curr_blkidx]);
             }
         }
-        if (subblkpat & 3) {
+        if (subblkpat & SUBBLOCK_BOTTOM) {
             ret = vc1_decode_ac_coeff_simple((VC1BlkCtx*)inter_blkctx,
-                                             block + 32,
+                                             block[curr_blkidx] + 32,
                                              31,
                                              gb);
             if (ret < 0)
                 return ret;
 
-            if (!skip_block) {
+            if (!CONFIG_GRAY || !inter_blkctx->skip_output) {
                 if (ret == 1)
-                    v->vc1dsp.vc1_inv_trans_8x4_dc(dst + 4 * linesize, linesize, block + 32);
+                    vc1dsp->vc1_inv_trans_8x4_dc(dst + 4 * linesize, linesize, block[curr_blkidx] + 32);
                 else
-                    v->vc1dsp.vc1_inv_trans_8x4(dst + 4 * linesize, linesize, block + 32);
+                    vc1dsp->vc1_inv_trans_8x4(dst + 4 * linesize, linesize, block[curr_blkidx] + 32);
             }
         }
 
@@ -1549,43 +1661,43 @@ static int vc1_decode_p_block_new(VC1Context *v, VC1InterBlkCtx *inter_blkctx, i
             *ttmb_out |= TT_8X4 << (n * 4);
         break;
 
-    case TT_4x8_new:
+    case TT_4x8_new >> 5:
         inter_blkctx->zz = ff_vc1_inter_4x8_scan_zz_table;
 
-        subblkpat = inter_blkctx->tt & 0xf;
+        subblkpat = inter_blkctx->tt & SUBBLOCK_MASK;
         if (!subblkpat) {
-            static const uint8_t subblkpat_4x8[3] = { 15, 5, 10 };
+            static const uint8_t subblkpat_4x8[3] = { SUBBLOCK_BOTH, SUBBLOCK_RIGHT, SUBBLOCK_LEFT };
 
-            subblkpat = subblkpat_4x8[decode012(gb)];
+            subblkpat = subblkpat_4x8[decode012(gb)]; // SUBBLKPAT
         }
-        if (subblkpat & 0xa) {
+        if (subblkpat & SUBBLOCK_LEFT) {
             ret = vc1_decode_ac_coeff_simple((VC1BlkCtx*)inter_blkctx,
-                                             block,
+                                             block[curr_blkidx],
                                              31,
                                              gb);
             if (ret < 0)
                 return ret;
 
-            if (!skip_block) {
+            if (!CONFIG_GRAY || !inter_blkctx->skip_output) {
                 if (ret == 1)
-                    v->vc1dsp.vc1_inv_trans_4x8_dc(dst, linesize, block);
+                    vc1dsp->vc1_inv_trans_4x8_dc(dst, linesize, block[curr_blkidx]);
                 else
-                    v->vc1dsp.vc1_inv_trans_4x8(dst, linesize, block);
+                    vc1dsp->vc1_inv_trans_4x8(dst, linesize, block[curr_blkidx]);
             }
         }
-        if (subblkpat & 5) {
+        if (subblkpat & SUBBLOCK_RIGHT) {
             ret = vc1_decode_ac_coeff_simple((VC1BlkCtx*)inter_blkctx,
-                                             block + 4,
+                                             block[curr_blkidx] + 4,
                                              31,
                                              gb);
             if (ret < 0)
                 return ret;
 
-            if (!skip_block) {
+            if (!CONFIG_GRAY || !inter_blkctx->skip_output) {
                 if (ret == 1)
-                    v->vc1dsp.vc1_inv_trans_4x8_dc(dst + 4, linesize, block + 4);
+                    vc1dsp->vc1_inv_trans_4x8_dc(dst + 4, linesize, block[curr_blkidx] + 4);
                 else
-                    v->vc1dsp.vc1_inv_trans_4x8(dst + 4, linesize, block + 4);
+                    vc1dsp->vc1_inv_trans_4x8(dst + 4, linesize, block[curr_blkidx] + 4);
             }
         }
 
@@ -1594,8 +1706,14 @@ static int vc1_decode_p_block_new(VC1Context *v, VC1InterBlkCtx *inter_blkctx, i
         break;
     }
 
-    if (inter_blkctx->tt & 0x10)
-        inter_blkctx->tt &= 0x70;
+    sblkctx[curr_blkidx].overlap = 0;
+
+//    if (sblkctx[topleft_blkidx].overlap & sblkctx[left_blkidx].overlap)
+//        inter_blkctx->vc1dsp->vc1_v_s_overlap(block[topleft_blkidx],
+//                                              block[left_blkidx]);
+
+    if (inter_blkctx->tt & SIGNALLEVEL_MB)
+        inter_blkctx->tt &= ~SUBBLOCK_MASK;
     else
         inter_blkctx->tt = 0;
 
@@ -1606,16 +1724,20 @@ static int vc1_decode_p_block_new(VC1Context *v, VC1InterBlkCtx *inter_blkctx, i
 
 static const uint8_t size_table[6] = { 0, 2, 3, 4,  5,  8 };
 
+static int vc1_decode_i_mb(VC1IMBCtx *mbctx,
+                           VC1IntraBlkCtx *blkctx,
+                           GetBitContext *gb);
+
 /** Decode one P-frame MB
  */
 static int vc1_decode_p_mb(VC1Context *v,
                            VC1PMBCtx *mbctx,
                            VC1IntraBlkCtx *intra_blkctx,
+                           VC1InterBlkCtx *inter_blkctx,
                            GetBitContext *gb)
 {
     MpegEncContext *s = &v->s;
     VC1PPictCtx *pict = (VC1PPictCtx*)v->pict;
-    VC1InterBlkCtx inter_blkctx;
     int acpred, cbpcy;
     int i, j;
     int mb_pos = s->mb_x + s->mb_y * s->mb_stride;
@@ -1631,16 +1753,10 @@ static int vc1_decode_p_mb(VC1Context *v,
     int dst_idx, off;
     int skipped, fourmv;
     int block_cbp = 0, pat, block_tt = 0, block_intra = 0;
-    int top_edge = mbctx->top_sblkidx < 0;
-    int left_edge = mbctx->top_sblkidx == 0 | mbctx->curr_sblkidx == 0;
-    int topleft_edge = top_edge | left_edge;
-    int top_sblkidx = 6 * mbctx->top_sblkidx;
-    int curr_sblkidx = 6 * mbctx->curr_sblkidx;
+    int16_t *blkidx = mbctx->blkidx;
     int ret;
 
     mquant = v->pq; /* lossy initialization */
-
-    inter_blkctx.btype = BLOCK_INTER;
 
     // TODO: this changes the crc for SA10164, SA10165 and SA10166
     // However, these streams are Pan and Scan and currently not
@@ -1691,9 +1807,10 @@ static int vc1_decode_p_mb(VC1Context *v,
                     ttmb = get_vlc2(gb, ff_vc1_ttmb_vlc[v->tt_index].table,
                                     VC1_TTMB_VLC_BITS, 2);
             } else {
-                inter_blkctx.tt = mbctx->tt;
-                inter_blkctx.ttblk_vlc = mbctx->ttblk_vlc;
-                inter_blkctx.subblkpat_vlc = mbctx->subblkpat_vlc;
+                inter_blkctx->tt = mbctx->tt;
+                inter_blkctx->ttblk_vlc = mbctx->ttblk_vlc;
+                inter_blkctx->subblkpat_vlc = mbctx->subblkpat_vlc;
+
                 if (!mbctx->tt && !s->mb_intra && mb_has_coeffs) {
                     int index;
 
@@ -1702,7 +1819,7 @@ static int vc1_decode_p_mb(VC1Context *v,
                                     VC1_TTMB_VLC_BITS, 2);
 
                     gb->index = index;
-                    inter_blkctx.tt = get_vlc2(gb, mbctx->ttmb_vlc->table, 7, 2); // TTMB
+                    inter_blkctx->tt = get_vlc2(gb, mbctx->ttmb_vlc->table, 7, 2); // TTMB
                 }
             }
             if (!s->mb_intra) ff_vc1_mc_1mv(v, 0);
@@ -1722,111 +1839,21 @@ static int vc1_decode_p_mb(VC1Context *v,
                         v->c_avail = v->mb_type[0][s->block_index[i] - 1];
 
                     mbctx->mquant = FFABS(mquant);
+                    mbctx->cbpcy = cbpcy;
 
                     intra_blkctx->mquant = mbctx->mquant;
                     intra_blkctx->double_quant = 2 * mbctx->mquant + pict->halfqp * (mquant > 0);
                     intra_blkctx->quant_scale = mbctx->mquant * !pict->pquantizer;
                     intra_blkctx->use_ac_pred = acpred;
 
-                    intra_blkctx->ac_coding_set = &mbctx->ac_coding_set[COMPONENT_LUMA];
-                    intra_blkctx->dc_diff_vlc = &mbctx->dc_diff_vlc[COMPONENT_LUMA];
-
-                    intra_blkctx->curr_sblkidx = curr_sblkidx;
-                    intra_blkctx->top_sblkidx = top_edge ? -1 : top_sblkidx + 2;
-                    intra_blkctx->topleft_sblkidx = topleft_edge ? -1 : top_sblkidx - 3;
-                    intra_blkctx->left_sblkidx = left_edge ? -1 : curr_sblkidx - 5;
-                    intra_blkctx->cbpcy = cbpcy & 1 << 5;
-                    if (i == 0) {
-                        if (v->seq->profile == PROFILE_ADVANCED) {
-                            vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, val, mquant,
-                                                   (i & 4) ? v->codingset2 : v->codingset);
-                        } else {
-                            ret = vc1_decode_i_block(intra_blkctx, v->block[v->cur_blk_idx][0], gb);
-                            if (ret < 0)
-                                return ret;
-                        }
-                    }
-
-                    intra_blkctx->curr_sblkidx = curr_sblkidx + 1;
-                    intra_blkctx->top_sblkidx = top_edge ? -1 : top_sblkidx + 3;
-                    intra_blkctx->topleft_sblkidx = top_edge ? -1 : top_sblkidx + 2;
-                    intra_blkctx->left_sblkidx = curr_sblkidx;
-                    intra_blkctx->cbpcy = cbpcy & 1 << 4;
-                    if (i == 1) {
-                        if (v->seq->profile == PROFILE_ADVANCED) {
-                            vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, val, mquant,
-                                                   (i & 4) ? v->codingset2 : v->codingset);
-                        } else {
-                            ret = vc1_decode_i_block(intra_blkctx, v->block[v->cur_blk_idx][2], gb);
-                            if (ret < 0)
-                                return ret;
-                        }
-                    }
-
-                    intra_blkctx->curr_sblkidx = curr_sblkidx + 2;
-                    intra_blkctx->top_sblkidx = curr_sblkidx;
-                    intra_blkctx->topleft_sblkidx = left_edge ? -1 : curr_sblkidx - 5;
-                    intra_blkctx->left_sblkidx = left_edge ? -1 : curr_sblkidx - 3;
-                    intra_blkctx->cbpcy = cbpcy & 1 << 3;
-                    if (i == 2) {
-                        if (v->seq->profile == PROFILE_ADVANCED) {
-                            vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, val, mquant,
-                                                   (i & 4) ? v->codingset2 : v->codingset);
-                        } else {
-                            ret = vc1_decode_i_block(intra_blkctx, v->block[v->cur_blk_idx][1], gb);
-                            if (ret < 0)
-                                return ret;
-                        }
-                    }
-
-                    intra_blkctx->curr_sblkidx = curr_sblkidx + 3;
-                    intra_blkctx->top_sblkidx = curr_sblkidx + 1;
-                    intra_blkctx->topleft_sblkidx = curr_sblkidx;
-                    intra_blkctx->left_sblkidx = curr_sblkidx + 2;
-                    intra_blkctx->cbpcy = cbpcy & 1 << 2;
-                    if (i == 3) {
-                        if (v->seq->profile == PROFILE_ADVANCED) {
-                            vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, val, mquant,
-                                                   (i & 4) ? v->codingset2 : v->codingset);
-                        } else {
-                            ret = vc1_decode_i_block(intra_blkctx, v->block[v->cur_blk_idx][3], gb);
-                            if (ret < 0)
-                                return ret;
-                        }
-                    }
-
-//                    vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, val, mquant,
-//                                           (i & 4) ? v->codingset2 : v->codingset);
-                    intra_blkctx->ac_coding_set = &mbctx->ac_coding_set[COMPONENT_CHROMA];
-                    intra_blkctx->dc_diff_vlc = &mbctx->dc_diff_vlc[COMPONENT_CHROMA];
-
-                    intra_blkctx->curr_sblkidx = curr_sblkidx + 4;
-                    intra_blkctx->top_sblkidx = top_edge ? -1 : top_sblkidx + 4;
-                    intra_blkctx->topleft_sblkidx = topleft_edge ? -1 : top_sblkidx - 2;
-                    intra_blkctx->left_sblkidx = left_edge ? -1 : curr_sblkidx - 2;
-                    intra_blkctx->cbpcy = cbpcy & 1 << 1;
-                    if (i == 4) {
-                        if (v->seq->profile == PROFILE_ADVANCED) {
-                            vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, val, mquant,
-                                                   (i & 4) ? v->codingset2 : v->codingset);
-                        } else {
-                            ret = vc1_decode_i_block(intra_blkctx, v->block[v->cur_blk_idx][4], gb);
-                            if (ret < 0)
-                                return ret;
-                        }
-                    }
-
-                    intra_blkctx->curr_sblkidx = curr_sblkidx + 5;
-                    intra_blkctx->top_sblkidx = top_edge ? -1 : top_sblkidx + 5;
-                    intra_blkctx->topleft_sblkidx = topleft_edge ? -1 : top_sblkidx - 1;
-                    intra_blkctx->left_sblkidx = left_edge ? -1 : curr_sblkidx - 1;
-                    intra_blkctx->cbpcy = cbpcy & 1;
-                    if (i == 5) {
-                        if (v->seq->profile == PROFILE_ADVANCED) {
-                            vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, val, mquant,
-                                                   (i & 4) ? v->codingset2 : v->codingset);
-                        } else {
-                            ret = vc1_decode_i_block(intra_blkctx, v->block[v->cur_blk_idx][5], gb);
+                    if (v->seq->profile == PROFILE_ADVANCED) {
+                        vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, val, mquant,
+                                               (i & 4) ? v->codingset2 : v->codingset);
+                    } else {
+                        if (i == 0) {
+                            ret = vc1_decode_i_mb((VC1IMBCtx*)mbctx,
+                                                  intra_blkctx,
+                                                  gb);
                             if (ret < 0)
                                 return ret;
                         }
@@ -1834,15 +1861,16 @@ static int vc1_decode_p_mb(VC1Context *v,
 
                     if (CONFIG_GRAY && (i > 3) && (s->avctx->flags & AV_CODEC_FLAG_GRAY))
                         continue;
-
-                    v->vc1dsp.vc1_inv_trans_8x8(v->block[v->cur_blk_idx][block_map[i]]);
+                    if (v->seq->profile == PROFILE_ADVANCED)
+                        v->vc1dsp.vc1_inv_trans_8x8(v->block[v->cur_blk_idx][block_map[i]]);
                     if (v->rangeredfrm)
                         for (j = 0; j < 64; j++)
                             v->block[v->cur_blk_idx][block_map[i]][j] *= 2;
                     block_cbp   |= 0xF << (i << 2);
                     block_intra |= 1 << i;
                 } else if (val) {
-                    mbctx->s_blkctx[curr_sblkidx + i].is_intra = 0;
+//                    mbctx->s_blkctx[blkidx[BLOCKIDX_Y0] + block_map[i]].btype = BLOCK_INTER;
+                    mbctx->s_blkctx[blkidx[i]].btype = BLOCK_INTER;
 
                     if (v->seq->profile == PROFILE_ADVANCED) {
                         pat = vc1_decode_p_block(v, v->block[v->cur_blk_idx][block_map[i]], i, mquant, ttmb, first_block,
@@ -1850,16 +1878,57 @@ static int vc1_decode_p_mb(VC1Context *v,
                                                  CONFIG_GRAY && (i & 4) && (s->avctx->flags & AV_CODEC_FLAG_GRAY), &block_tt);
                     } else {
                         mbctx->mquant = FFABS(mquant);
-                        inter_blkctx.ac_coding_set = &mbctx->ac_coding_set[COMPONENT_CHROMA];
-                        inter_blkctx.ac_level_code_size = &pict->ac_level_code_size;
-                        inter_blkctx.ac_run_code_size = &pict->ac_run_code_size;
-                        inter_blkctx.esc_mode3_vlc = pict->pquant < 8 || pict->dquant_inframe;
-                        inter_blkctx.double_quant = 2 * mbctx->mquant + pict->halfqp * (mquant > 0);
-                        inter_blkctx.quant_scale = mbctx->mquant * !pict->pquantizer;
 
-                        pat = vc1_decode_p_block_new(v, &inter_blkctx, v->block[v->cur_blk_idx][block_map[i]], i,
-                                                     s->dest[dst_idx] + off, (i & 4) ? s->uvlinesize : s->linesize,
-                                                     CONFIG_GRAY && (i & 4) && (s->avctx->flags & AV_CODEC_FLAG_GRAY), &block_tt);
+                        inter_blkctx->ac_coding_set = &mbctx->ac_coding_set[COMPONENT_CHROMA];
+                        inter_blkctx->ac_level_code_size = &pict->ac_level_code_size;
+                        inter_blkctx->ac_run_code_size = &pict->ac_run_code_size;
+                        inter_blkctx->esc_mode3_vlc = pict->pquant < 8 || pict->dquant_inframe;
+                        inter_blkctx->double_quant = 2 * mbctx->mquant + pict->halfqp * (mquant > 0);
+                        inter_blkctx->quant_scale = mbctx->mquant * !pict->pquantizer;
+                        if (CONFIG_GRAY)
+                            inter_blkctx->skip_output = i > 3 && mbctx->codec_flag_gray;
+
+//                        pat = vc1_decode_p_block_new(v, inter_blkctx, v->block[v->cur_blk_idx][block_map[i]], i,
+//                                                     s->dest[dst_idx] + off, (i & 4) ? s->uvlinesize : s->linesize,
+//                                                     &block_tt, gb);
+
+                        switch (i) {
+                        case 0:
+                            pat = vc1_decode_p_block_new(v, mbctx, inter_blkctx, i, BLOCKIDX_Y0, BLOCKIDX_L1, BLOCKIDX_LT3,
+                                                         s->dest[dst_idx] + off, (i & 4) ? s->uvlinesize : s->linesize,
+                                                         &block_tt, gb);
+                            break;
+
+                        case 1:
+                            pat = vc1_decode_p_block_new(v, mbctx, inter_blkctx, i, BLOCKIDX_Y1, BLOCKIDX_Y0, BLOCKIDX_T2,
+                                                         s->dest[dst_idx] + off, (i & 4) ? s->uvlinesize : s->linesize,
+                                                         &block_tt, gb);
+                            break;
+
+                        case 2:
+                            pat = vc1_decode_p_block_new(v, mbctx, inter_blkctx, i, BLOCKIDX_Y2, BLOCKIDX_L3, BLOCKIDX_L1,
+                                                         s->dest[dst_idx] + off, (i & 4) ? s->uvlinesize : s->linesize,
+                                                         &block_tt, gb);
+                            break;
+
+                        case 3:
+                            pat = vc1_decode_p_block_new(v, mbctx, inter_blkctx, i, BLOCKIDX_Y3, BLOCKIDX_Y2, BLOCKIDX_Y0,
+                                                         s->dest[dst_idx] + off, (i & 4) ? s->uvlinesize : s->linesize,
+                                                         &block_tt, gb);
+                            break;
+
+                        case 4:
+                            pat = vc1_decode_p_block_new(v, mbctx, inter_blkctx, i, BLOCKIDX_CB, BLOCKIDX_CB_L, BLOCKIDX_CB_LT,
+                                                         s->dest[dst_idx] + off, (i & 4) ? s->uvlinesize : s->linesize,
+                                                         &block_tt, gb);
+                            break;
+
+                        case 5:
+                            pat = vc1_decode_p_block_new(v, mbctx, inter_blkctx, i, BLOCKIDX_CR, BLOCKIDX_CR_L, BLOCKIDX_CB_LT,
+                                                         s->dest[dst_idx] + off, (i & 4) ? s->uvlinesize : s->linesize,
+                                                         &block_tt, gb);
+                            break;
+                        }
                     }
                     if (pat < 0)
                         return pat;
@@ -1868,16 +1937,24 @@ static int vc1_decode_p_mb(VC1Context *v,
                         ttmb = -1;
                     first_block = 0;
                 } else {
-                    mbctx->s_blkctx[curr_sblkidx + i].is_intra = 0;
+//                    mbctx->s_blkctx[blkidx[BLOCKIDX_Y0] + block_map[i]].btype = BLOCK_INTER;
+                    mbctx->s_blkctx[blkidx[i]].btype = BLOCK_INTER;
+                    mbctx->s_blkctx[blkidx[i]].overlap = 0;
                 }
             }
         } else { // skipped
-            mbctx->s_blkctx[curr_sblkidx].is_intra = 0;
-            mbctx->s_blkctx[curr_sblkidx + 1].is_intra = 0;
-            mbctx->s_blkctx[curr_sblkidx + 2].is_intra = 0;
-            mbctx->s_blkctx[curr_sblkidx + 3].is_intra = 0;
-            mbctx->s_blkctx[curr_sblkidx + 4].is_intra = 0;
-            mbctx->s_blkctx[curr_sblkidx + 5].is_intra = 0;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_Y0]].btype = BLOCK_INTER;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_Y1]].btype = BLOCK_INTER;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_Y2]].btype = BLOCK_INTER;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_Y3]].btype = BLOCK_INTER;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_CB]].btype = BLOCK_INTER;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_CR]].btype = BLOCK_INTER;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_Y0]].overlap = 0;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_Y1]].overlap = 0;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_Y2]].overlap = 0;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_Y3]].overlap = 0;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_CB]].overlap = 0;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_CR]].overlap = 0;
 
             s->mb_intra = 0;
             for (i = 0; i < 6; i++) {
@@ -1929,12 +2006,18 @@ static int vc1_decode_p_mb(VC1Context *v,
             // if there are no coded blocks then don't do anything more
             dst_idx = 0;
             if (!intra_count && !coded_inter){
-                mbctx->s_blkctx[curr_sblkidx].is_intra = 0;
-                mbctx->s_blkctx[curr_sblkidx + 1].is_intra = 0;
-                mbctx->s_blkctx[curr_sblkidx + 2].is_intra = 0;
-                mbctx->s_blkctx[curr_sblkidx + 3].is_intra = 0;
-                mbctx->s_blkctx[curr_sblkidx + 4].is_intra = 0;
-                mbctx->s_blkctx[curr_sblkidx + 5].is_intra = 0;
+                mbctx->s_blkctx[blkidx[BLOCKIDX_Y0]].btype = BLOCK_INTER;
+                mbctx->s_blkctx[blkidx[BLOCKIDX_Y1]].btype = BLOCK_INTER;
+                mbctx->s_blkctx[blkidx[BLOCKIDX_Y2]].btype = BLOCK_INTER;
+                mbctx->s_blkctx[blkidx[BLOCKIDX_Y3]].btype = BLOCK_INTER;
+                mbctx->s_blkctx[blkidx[BLOCKIDX_CB]].btype = BLOCK_INTER;
+                mbctx->s_blkctx[blkidx[BLOCKIDX_CR]].btype = BLOCK_INTER;
+                mbctx->s_blkctx[blkidx[BLOCKIDX_Y0]].overlap = 0;
+                mbctx->s_blkctx[blkidx[BLOCKIDX_Y1]].overlap = 0;
+                mbctx->s_blkctx[blkidx[BLOCKIDX_Y2]].overlap = 0;
+                mbctx->s_blkctx[blkidx[BLOCKIDX_Y3]].overlap = 0;
+                mbctx->s_blkctx[blkidx[BLOCKIDX_CB]].overlap = 0;
+                mbctx->s_blkctx[blkidx[BLOCKIDX_CR]].overlap = 0;
 
                 goto end;
             }
@@ -1960,9 +2043,9 @@ static int vc1_decode_p_mb(VC1Context *v,
                 if (!v->ttmbf && coded_inter)
                     ttmb = get_vlc2(gb, ff_vc1_ttmb_vlc[v->tt_index].table, VC1_TTMB_VLC_BITS, 2);
             } else {
-                inter_blkctx.tt = mbctx->tt;
-                inter_blkctx.ttblk_vlc = mbctx->ttblk_vlc;
-                inter_blkctx.subblkpat_vlc = mbctx->subblkpat_vlc;
+                inter_blkctx->tt = mbctx->tt;
+                inter_blkctx->ttblk_vlc = mbctx->ttblk_vlc;
+                inter_blkctx->subblkpat_vlc = mbctx->subblkpat_vlc;
                 if (!mbctx->tt && coded_inter) {
                     int index;
 
@@ -1971,7 +2054,7 @@ static int vc1_decode_p_mb(VC1Context *v,
                                     VC1_TTMB_VLC_BITS, 2);
 
                     gb->index = index;
-                    inter_blkctx.tt = get_vlc2(gb, mbctx->ttmb_vlc->table, 7, 2); // TTMB
+                    inter_blkctx->tt = get_vlc2(gb, mbctx->ttmb_vlc->table, 7, 2); // TTMB
                 }
             }
             for (i = 0; i < 6; i++) {
@@ -1992,73 +2075,85 @@ static int vc1_decode_p_mb(VC1Context *v,
                     intra_blkctx->double_quant = 2 * mbctx->mquant + pict->halfqp * (mquant > 0);
                     intra_blkctx->quant_scale = mbctx->mquant * !pict->pquantizer;
                     intra_blkctx->use_ac_pred = acpred;
+                    intra_blkctx->use_cbpcy_pred = mbctx->mbtype == MB_I ? 1 : 0;
 
                     intra_blkctx->ac_coding_set = &mbctx->ac_coding_set[COMPONENT_LUMA];
                     intra_blkctx->dc_diff_vlc = &mbctx->dc_diff_vlc[COMPONENT_LUMA];
 
-                    intra_blkctx->curr_sblkidx = curr_sblkidx;
-                    intra_blkctx->top_sblkidx = top_edge ? -1 : top_sblkidx + 2;
-                    intra_blkctx->topleft_sblkidx = topleft_edge ? -1 : top_sblkidx - 3;
-                    intra_blkctx->left_sblkidx = left_edge ? -1 : curr_sblkidx - 5;
-//                  intra_blkctx->cbpcy = cbpcy >> 5 & 1;
-                    intra_blkctx->cbpcy = !!is_coded[0];
+                    if (CONFIG_GRAY)
+                        intra_blkctx->skip_output = 0;
+
                     if (i == 0) {
                         if (v->seq->profile == PROFILE_ADVANCED) {
                             vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, is_coded[i], mquant,
                                                    (i & 4) ? v->codingset2 : v->codingset);
                         } else {
-                            ret = vc1_decode_i_block(intra_blkctx, v->block[v->cur_blk_idx][0], gb);
+                            // decode block Y0
+                            intra_blkctx->cbpcy = !!is_coded[0];
+                            ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
+                                                             intra_blkctx,
+                                                             BLOCKIDX_Y0,
+                                                             BLOCKIDX_T2,
+                                                             BLOCKIDX_LT3,
+                                                             BLOCKIDX_L1,
+                                                             gb);
                             if (ret < 0)
                                 return ret;
                         }
                     }
 
-                    intra_blkctx->curr_sblkidx = curr_sblkidx + 1;
-                    intra_blkctx->top_sblkidx = top_edge ? -1 : top_sblkidx + 3;
-                    intra_blkctx->topleft_sblkidx = top_edge ? -1 : top_sblkidx + 2;
-                    intra_blkctx->left_sblkidx = curr_sblkidx;
-//                  intra_blkctx->cbpcy = cbpcy >> 4 & 1;
-                    intra_blkctx->cbpcy = !!is_coded[1];
                     if (i == 1) {
                         if (v->seq->profile == PROFILE_ADVANCED) {
                             vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, is_coded[i], mquant,
                                                    (i & 4) ? v->codingset2 : v->codingset);
                         } else {
-                            ret = vc1_decode_i_block(intra_blkctx, v->block[v->cur_blk_idx][2], gb);
+                            // decode block Y1
+                            intra_blkctx->cbpcy = !!is_coded[1];
+                            ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
+                                                             intra_blkctx,
+                                                             BLOCKIDX_Y1,
+                                                             BLOCKIDX_T3,
+                                                             BLOCKIDX_T2,
+                                                             BLOCKIDX_Y0,
+                                                             gb);
                             if (ret < 0)
                                 return ret;
                         }
                     }
 
-                    intra_blkctx->curr_sblkidx = curr_sblkidx + 2;
-                    intra_blkctx->top_sblkidx = curr_sblkidx;
-                    intra_blkctx->topleft_sblkidx = left_edge ? -1 : curr_sblkidx - 5;
-                    intra_blkctx->left_sblkidx = left_edge ? -1 : curr_sblkidx - 3;
-//                  intra_blkctx->cbpcy = cbpcy >> 3 & 1;
-                    intra_blkctx->cbpcy = !!is_coded[2];
                     if (i == 2) {
                         if (v->seq->profile == PROFILE_ADVANCED) {
                             vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, is_coded[i], mquant,
                                                    (i & 4) ? v->codingset2 : v->codingset);
                         } else {
-                            ret = vc1_decode_i_block(intra_blkctx, v->block[v->cur_blk_idx][1], gb);
+                            // decode block Y2
+                            intra_blkctx->cbpcy = !!is_coded[2];
+                            ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
+                                                             intra_blkctx,
+                                                             BLOCKIDX_Y2,
+                                                             BLOCKIDX_Y0,
+                                                             BLOCKIDX_L1,
+                                                             BLOCKIDX_L3,
+                                                             gb);
                             if (ret < 0)
                                 return ret;
                         }
                     }
 
-                    intra_blkctx->curr_sblkidx = curr_sblkidx + 3;
-                    intra_blkctx->top_sblkidx = curr_sblkidx + 1;
-                    intra_blkctx->topleft_sblkidx = curr_sblkidx;
-                    intra_blkctx->left_sblkidx = curr_sblkidx + 2;
-//                  intra_blkctx->cbpcy = cbpcy >> 2 & 1;
-                    intra_blkctx->cbpcy = !!is_coded[3];
                     if (i == 3) {
                         if (v->seq->profile == PROFILE_ADVANCED) {
                             vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, is_coded[i], mquant,
                                                    (i & 4) ? v->codingset2 : v->codingset);
                         } else {
-                            ret = vc1_decode_i_block(intra_blkctx, v->block[v->cur_blk_idx][3], gb);
+                            // decode block Y3
+                            intra_blkctx->cbpcy = !!is_coded[3];
+                            ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
+                                                             intra_blkctx,
+                                                             BLOCKIDX_Y3,
+                                                             BLOCKIDX_Y1,
+                                                             BLOCKIDX_Y0,
+                                                             BLOCKIDX_Y2,
+                                                             gb);
                             if (ret < 0)
                                 return ret;
                         }
@@ -2069,35 +2164,42 @@ static int vc1_decode_p_mb(VC1Context *v,
                     intra_blkctx->ac_coding_set = &mbctx->ac_coding_set[COMPONENT_CHROMA];
                     intra_blkctx->dc_diff_vlc = &mbctx->dc_diff_vlc[COMPONENT_CHROMA];
 
-                    intra_blkctx->curr_sblkidx = curr_sblkidx + 4;
-                    intra_blkctx->top_sblkidx = top_edge ? -1 : top_sblkidx + 4;
-                    intra_blkctx->topleft_sblkidx = topleft_edge ? -1 : top_sblkidx - 2;
-                    intra_blkctx->left_sblkidx = left_edge ? -1 : curr_sblkidx - 2;
-                    intra_blkctx->cbpcy = cbpcy & 1 << 1;
-//                    intra_blkctx->cbpcy = !!is_coded[4];
+                    if (CONFIG_GRAY && mbctx->codec_flag_gray)
+                        intra_blkctx->skip_output = 1;
+
                     if (i == 4) {
                         if (v->seq->profile == PROFILE_ADVANCED) {
                             vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, is_coded[i], mquant,
                                                    (i & 4) ? v->codingset2 : v->codingset);
                         } else {
-                            ret = vc1_decode_i_block(intra_blkctx, v->block[v->cur_blk_idx][4], gb);
+                            // decode block Cb
+                            intra_blkctx->cbpcy = cbpcy & 1 << 1;
+                            ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
+                                                             intra_blkctx,
+                                                             BLOCKIDX_CB,
+                                                             BLOCKIDX_CB_T,
+                                                             BLOCKIDX_CB_LT,
+                                                             BLOCKIDX_CB_L,
+                                                             gb);
                             if (ret < 0)
                                 return ret;
                         }
                     }
 
-                    intra_blkctx->curr_sblkidx = curr_sblkidx + 5;
-                    intra_blkctx->top_sblkidx = top_edge ? -1 : top_sblkidx + 5;
-                    intra_blkctx->topleft_sblkidx = topleft_edge ? -1 : top_sblkidx - 1;
-                    intra_blkctx->left_sblkidx = left_edge ? -1 : curr_sblkidx - 1;
-                    intra_blkctx->cbpcy = cbpcy & 1;
-//                    intra_blkctx->cbpcy = !!is_coded[5];
                     if (i == 5) {
                         if (v->seq->profile == PROFILE_ADVANCED) {
                             vc1_decode_intra_block(v, v->block[v->cur_blk_idx][block_map[i]], i, is_coded[i], mquant,
                                                    (i & 4) ? v->codingset2 : v->codingset);
                         } else {
-                            ret = vc1_decode_i_block(intra_blkctx, v->block[v->cur_blk_idx][5], gb);
+                            // decode block Cr
+                            intra_blkctx->cbpcy = cbpcy & 1;
+                            ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
+                                                             intra_blkctx,
+                                                             BLOCKIDX_CR,
+                                                             BLOCKIDX_CR_T,
+                                                             BLOCKIDX_CR_LT,
+                                                             BLOCKIDX_CR_L,
+                                                             gb);
                             if (ret < 0)
                                 return ret;
                         }
@@ -2106,14 +2208,16 @@ static int vc1_decode_p_mb(VC1Context *v,
                     if (CONFIG_GRAY && (i > 3) && (s->avctx->flags & AV_CODEC_FLAG_GRAY))
                         continue;
 
-                    v->vc1dsp.vc1_inv_trans_8x8(v->block[v->cur_blk_idx][block_map[i]]);
+                    if (v->seq->profile == PROFILE_ADVANCED)
+                        v->vc1dsp.vc1_inv_trans_8x8(v->block[v->cur_blk_idx][block_map[i]]);
                     if (v->rangeredfrm)
                         for (j = 0; j < 64; j++)
                             v->block[v->cur_blk_idx][block_map[i]][j] *= 2;
                     block_cbp   |= 0xF << (i << 2);
                     block_intra |= 1 << i;
                 } else if (is_coded[i]) {
-                    mbctx->s_blkctx[curr_sblkidx + i].is_intra = 0;
+//                    mbctx->s_blkctx[blkidx[BLOCKIDX_Y0] + block_map[i]].btype = BLOCK_INTER;
+                    mbctx->s_blkctx[blkidx[i]].btype = BLOCK_INTER;
 
                     if (v->seq->profile == PROFILE_ADVANCED) {
                         pat = vc1_decode_p_block(v, v->block[v->cur_blk_idx][block_map[i]], i, mquant, ttmb,
@@ -2123,17 +2227,56 @@ static int vc1_decode_p_mb(VC1Context *v,
                                                  &block_tt);
                     } else {
                         mbctx->mquant = FFABS(mquant);
-                        inter_blkctx.ac_coding_set = &mbctx->ac_coding_set[COMPONENT_CHROMA];
-                        inter_blkctx.ac_level_code_size = &pict->ac_level_code_size;
-                        inter_blkctx.ac_run_code_size = &pict->ac_run_code_size;
-                        inter_blkctx.esc_mode3_vlc = pict->pquant < 8 || pict->dquant_inframe;
-                        inter_blkctx.double_quant = 2 * mbctx->mquant + pict->halfqp * (mquant > 0);
-                        inter_blkctx.quant_scale = mbctx->mquant * !pict->pquantizer;
+                        inter_blkctx->ac_coding_set = &mbctx->ac_coding_set[COMPONENT_CHROMA];
+                        inter_blkctx->ac_level_code_size = &pict->ac_level_code_size;
+                        inter_blkctx->ac_run_code_size = &pict->ac_run_code_size;
+                        inter_blkctx->esc_mode3_vlc = pict->pquant < 8 || pict->dquant_inframe;
+                        inter_blkctx->double_quant = 2 * mbctx->mquant + pict->halfqp * (mquant > 0);
+                        inter_blkctx->quant_scale = mbctx->mquant * !pict->pquantizer;
+                        if (CONFIG_GRAY)
+                            inter_blkctx->skip_output = i > 3 && mbctx->codec_flag_gray;
 
-                        pat = vc1_decode_p_block_new(v, &inter_blkctx, v->block[v->cur_blk_idx][block_map[i]], i,
-                                                     s->dest[dst_idx] + off, (i & 4) ? s->uvlinesize : s->linesize,
-                                                     CONFIG_GRAY && (i & 4) && (s->avctx->flags & AV_CODEC_FLAG_GRAY),
-                                                     &block_tt);
+//                        pat = vc1_decode_p_block_new(v, inter_blkctx, v->block[v->cur_blk_idx][block_map[i]], i,
+//                                                     s->dest[dst_idx] + off, (i & 4) ? s->uvlinesize : s->linesize,
+//                                                     &block_tt, gb);
+
+                        switch (i) {
+                        case 0:
+                            pat = vc1_decode_p_block_new(v, mbctx, inter_blkctx, i, BLOCKIDX_Y0, BLOCKIDX_L1, BLOCKIDX_LT3,
+                                                         s->dest[dst_idx] + off, (i & 4) ? s->uvlinesize : s->linesize,
+                                                         &block_tt, gb);
+                            break;
+
+                        case 1:
+                            pat = vc1_decode_p_block_new(v, mbctx, inter_blkctx, i, BLOCKIDX_Y1, BLOCKIDX_Y0, BLOCKIDX_T2,
+                                                         s->dest[dst_idx] + off, (i & 4) ? s->uvlinesize : s->linesize,
+                                                         &block_tt, gb);
+                            break;
+
+                        case 2:
+                            pat = vc1_decode_p_block_new(v, mbctx, inter_blkctx, i, BLOCKIDX_Y2, BLOCKIDX_L3, BLOCKIDX_L1,
+                                                         s->dest[dst_idx] + off, (i & 4) ? s->uvlinesize : s->linesize,
+                                                         &block_tt, gb);
+                            break;
+
+                        case 3:
+                            pat = vc1_decode_p_block_new(v, mbctx, inter_blkctx, i, BLOCKIDX_Y3, BLOCKIDX_Y2, BLOCKIDX_Y0,
+                                                         s->dest[dst_idx] + off, (i & 4) ? s->uvlinesize : s->linesize,
+                                                         &block_tt, gb);
+                            break;
+
+                        case 4:
+                            pat = vc1_decode_p_block_new(v, mbctx, inter_blkctx, i, BLOCKIDX_CB, BLOCKIDX_CB_L, BLOCKIDX_CB_LT,
+                                                         s->dest[dst_idx] + off, (i & 4) ? s->uvlinesize : s->linesize,
+                                                         &block_tt, gb);
+                            break;
+
+                        case 5:
+                            pat = vc1_decode_p_block_new(v, mbctx, inter_blkctx, i, BLOCKIDX_CR, BLOCKIDX_CR_L, BLOCKIDX_CB_LT,
+                                                         s->dest[dst_idx] + off, (i & 4) ? s->uvlinesize : s->linesize,
+                                                         &block_tt, gb);
+                            break;
+                        }
                     }
                     if (pat < 0)
                         return pat;
@@ -2142,16 +2285,24 @@ static int vc1_decode_p_mb(VC1Context *v,
                         ttmb = -1;
                     first_block = 0;
                 } else {
-                    mbctx->s_blkctx[curr_sblkidx + i].is_intra = 0;
+//                    mbctx->s_blkctx[blkidx[BLOCKIDX_Y0] + block_map[i]].btype = BLOCK_INTER;
+                    mbctx->s_blkctx[blkidx[i]].btype = BLOCK_INTER;
+                    mbctx->s_blkctx[blkidx[i]].overlap = 0;
                 }
             }
         } else { // skipped MB
-            mbctx->s_blkctx[curr_sblkidx].is_intra = 0;
-            mbctx->s_blkctx[curr_sblkidx + 1].is_intra = 0;
-            mbctx->s_blkctx[curr_sblkidx + 2].is_intra = 0;
-            mbctx->s_blkctx[curr_sblkidx + 3].is_intra = 0;
-            mbctx->s_blkctx[curr_sblkidx + 4].is_intra = 0;
-            mbctx->s_blkctx[curr_sblkidx + 5].is_intra = 0;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_Y0]].btype = BLOCK_INTER;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_Y1]].btype = BLOCK_INTER;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_Y2]].btype = BLOCK_INTER;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_Y3]].btype = BLOCK_INTER;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_CB]].btype = BLOCK_INTER;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_CR]].btype = BLOCK_INTER;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_Y0]].overlap = 0;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_Y1]].overlap = 0;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_Y2]].overlap = 0;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_Y3]].overlap = 0;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_CB]].overlap = 0;
+            mbctx->s_blkctx[blkidx[BLOCKIDX_CR]].overlap = 0;
 
             s->mb_intra                               = 0;
             s->current_picture.qscale_table[mb_pos] = 0;
@@ -2170,6 +2321,21 @@ static int vc1_decode_p_mb(VC1Context *v,
 end:
     if (v->overlap && v->pq >= 9)
         ff_vc1_p_overlap_filter(v);
+
+//    if (s->mb_x == s->mb_width - 1) {
+//        if (mbctx->s_blkctx[mbctx->blkidx[BLOCKIDX_T3]].overlap & mbctx->s_blkctx[mbctx->blkidx[BLOCKIDX_Y1]].overlap)
+//            inter_blkctx->vc1dsp->vc1_v_s_overlap(mbctx->block[mbctx->blkidx[BLOCKIDX_T3]],
+//                                                  mbctx->block[mbctx->blkidx[BLOCKIDX_Y1]]);
+//        if (mbctx->s_blkctx[mbctx->blkidx[BLOCKIDX_Y1]].overlap & mbctx->s_blkctx[mbctx->blkidx[BLOCKIDX_Y3]].overlap)
+//            inter_blkctx->vc1dsp->vc1_v_s_overlap(mbctx->block[mbctx->blkidx[BLOCKIDX_Y1]],
+//                                                  mbctx->block[mbctx->blkidx[BLOCKIDX_Y3]]);
+//        if (mbctx->s_blkctx[mbctx->blkidx[BLOCKIDX_CB_T]].overlap & mbctx->s_blkctx[mbctx->blkidx[BLOCKIDX_CB]].overlap)
+//            inter_blkctx->vc1dsp->vc1_v_s_overlap(mbctx->block[mbctx->blkidx[BLOCKIDX_CB_T]],
+//                                                  mbctx->block[mbctx->blkidx[BLOCKIDX_CB]]);
+//        if (mbctx->s_blkctx[mbctx->blkidx[BLOCKIDX_CR_T]].overlap & mbctx->s_blkctx[mbctx->blkidx[BLOCKIDX_CR]].overlap)
+//            inter_blkctx->vc1dsp->vc1_v_s_overlap(mbctx->block[mbctx->blkidx[BLOCKIDX_CR_T]],
+//                                                  mbctx->block[mbctx->blkidx[BLOCKIDX_CR]]);
+//    }
     vc1_put_blocks_clamped(v, 1);
 
     v->cbp[s->mb_x]      = block_cbp;
@@ -3190,88 +3356,194 @@ static int vc1_decode_b_mb_intfr(VC1Context *v)
 
 static inline int vc1_decode_i_mb(VC1IMBCtx *mbctx,
                                   VC1IntraBlkCtx *blkctx,
-                                  int16_t block[64],
                                   GetBitContext *gb)
 {
-    int top_edge = mbctx->top_sblkidx < 0;
-    int left_edge = mbctx->top_sblkidx == 0 | mbctx->curr_sblkidx == 0;
-    int topleft_edge = top_edge | left_edge;
-    int top_sblkidx = 6 * mbctx->top_sblkidx;
-    int curr_sblkidx = 6 * mbctx->curr_sblkidx;
-    int cbpcy, acpred;
+    unsigned int cbpcy;
+    int ret;
 
-    cbpcy = get_vlc2(gb, mbctx->cbpcy_vlc->table, 8, 2); // CBPCY
-    acpred = get_bits1(gb); // ACPRED
+    switch (mbctx->mbtype) {
+    case MB_I:
+        cbpcy = get_vlc2(gb, mbctx->cbpcy_vlc->table, 8, 2); // CBPCY
+        blkctx->use_ac_pred = get_bits1(gb); // ACPRED
+        blkctx->use_cbpcy_pred = 1;
+        break;
 
-//    blkctx.btype = BLOCK_INTRA;
-//    blkctx.zz_8x8 = &pict->zz_8x8;
-//    blkctx.mquant = ((VC1SimplePictCtx*)v->pict)->pquant;
-//    blkctx.double_quant = 2 * blkctx.mquant + pict->halfqp;
-//    blkctx.quant_scale = blkctx.mquant * !pict->pquantizer;
-//    blkctx.fasttx = ((VC1SimpleSeqCtx*)v->seq)->res_fasttx;
-//    blkctx.ac_level_code_size = &pict->ac_level_code_size;
-//    blkctx.ac_run_code_size = &pict->ac_run_code_size;
-//    blkctx.esc_mode3_vlc = pict->pquant < 8;
+    case MB_P:
+        cbpcy = mbctx->cbpcy;
+        blkctx->use_cbpcy_pred = 0;
+        break;
+
+    default:
+        av_assert0(0);
+    }
 
     blkctx->ac_coding_set = &mbctx->ac_coding_set[COMPONENT_LUMA];
     blkctx->dc_diff_vlc = &mbctx->dc_diff_vlc[COMPONENT_LUMA];
-    blkctx->use_cbpcy_pred = 1;
-    blkctx->use_ac_pred = acpred;
+    if (CONFIG_GRAY)
+        blkctx->skip_output = 0;
 
-    // decode block Y0
-    blkctx->curr_sblkidx = curr_sblkidx;
-    blkctx->top_sblkidx = top_edge ? -1 : top_sblkidx + 2;
-    blkctx->topleft_sblkidx = topleft_edge ? -1 : top_sblkidx - 3;
-    blkctx->left_sblkidx = left_edge ? -1 : curr_sblkidx - 5;
+    /* decode block Y0 */
     blkctx->cbpcy = cbpcy & 1 << 5;
-    vc1_decode_i_block(blkctx, block, gb);
+    ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
+                                     blkctx,
+                                     BLOCKIDX_Y0,
+                                     BLOCKIDX_T2,
+                                     BLOCKIDX_LT3,
+                                     BLOCKIDX_L1,
+                                     gb);
+    if (ret < 0)
+        return ret;
 
-    // decode block Y1
-    blkctx->curr_sblkidx = curr_sblkidx + 1;
-    blkctx->top_sblkidx = top_edge ? -1 : top_sblkidx + 3;
-    blkctx->topleft_sblkidx = top_edge ? -1 : top_sblkidx + 2;
-    blkctx->left_sblkidx = curr_sblkidx;
+    /* decode block Y1 */
     blkctx->cbpcy = cbpcy & 1 << 4;
-    vc1_decode_i_block(blkctx, block + 128, gb);
+    ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
+                                     blkctx,
+                                     BLOCKIDX_Y1,
+                                     BLOCKIDX_T3,
+                                     BLOCKIDX_T2,
+                                     BLOCKIDX_Y0,
+                                     gb);
+    if (ret < 0)
+        return ret;
 
-    // decode block Y2
-    blkctx->curr_sblkidx = curr_sblkidx + 2;
-    blkctx->top_sblkidx = curr_sblkidx;
-    blkctx->topleft_sblkidx = left_edge ? -1 : curr_sblkidx - 5;
-    blkctx->left_sblkidx = left_edge ? -1 : curr_sblkidx - 3;
+    /* decode block Y2 */
     blkctx->cbpcy = cbpcy & 1 << 3;
-    vc1_decode_i_block(blkctx, block + 64, gb);
+    ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
+                                     blkctx,
+                                     BLOCKIDX_Y2,
+                                     BLOCKIDX_Y0,
+                                     BLOCKIDX_L1,
+                                     BLOCKIDX_L3,
+                                     gb);
+    if (ret < 0)
+        return ret;
 
-    // decode block Y3
-    blkctx->curr_sblkidx = curr_sblkidx + 3;
-    blkctx->top_sblkidx = curr_sblkidx + 1;
-    blkctx->topleft_sblkidx = curr_sblkidx;
-    blkctx->left_sblkidx = curr_sblkidx + 2;
+    /* decode block Y3 */
     blkctx->cbpcy = cbpcy & 1 << 2;
-    vc1_decode_i_block(blkctx, block + 192, gb);
+    ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
+                                     blkctx,
+                                     BLOCKIDX_Y3,
+                                     BLOCKIDX_Y1,
+                                     BLOCKIDX_Y0,
+                                     BLOCKIDX_Y2,
+                                     gb);
+    if (ret < 0)
+        return ret;
 
     blkctx->ac_coding_set = &mbctx->ac_coding_set[COMPONENT_CHROMA];
     blkctx->dc_diff_vlc = &mbctx->dc_diff_vlc[COMPONENT_CHROMA];
     blkctx->use_cbpcy_pred = 0;
+    if (CONFIG_GRAY && mbctx->codec_flag_gray)
+        blkctx->skip_output = 1;
 
-    // decode block Cb
-    blkctx->curr_sblkidx = curr_sblkidx + 4;
-    blkctx->top_sblkidx = top_edge ? -1 : top_sblkidx + 4;
-    blkctx->topleft_sblkidx = topleft_edge ? -1 : top_sblkidx - 2;
-    blkctx->left_sblkidx = left_edge ? -1 : curr_sblkidx - 2;
+    /* decode block Cb */
     blkctx->cbpcy = cbpcy & 1 << 1;
-    vc1_decode_i_block(blkctx, block + 256, gb);
+    ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
+                                     blkctx,
+                                     BLOCKIDX_CB,
+                                     BLOCKIDX_CB_T,
+                                     BLOCKIDX_CB_LT,
+                                     BLOCKIDX_CB_L,
+                                     gb);
+    if (ret < 0)
+        return ret;
 
-    // decode block Cr
-    blkctx->curr_sblkidx = curr_sblkidx + 5;
-    blkctx->top_sblkidx = top_edge ? -1 : top_sblkidx + 5;
-    blkctx->topleft_sblkidx = topleft_edge ? -1 : top_sblkidx - 1;
-    blkctx->left_sblkidx = left_edge ? -1 : curr_sblkidx - 1;
+    /* decode block Cr */
     blkctx->cbpcy = cbpcy & 1;
-    vc1_decode_i_block(blkctx, block + 320, gb);
+    ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
+                                     blkctx,
+                                     BLOCKIDX_CR,
+                                     BLOCKIDX_CR_T,
+                                     BLOCKIDX_CR_LT,
+                                     BLOCKIDX_CR_L,
+                                     gb);
+    if (ret < 0)
+        return ret;
 
     return 0;
 }
+/*
+static inline void vc1_overlap_filter(VC1IMBCtx *mbctx,
+                                      VC1IntraBlkCtx *blkctx)
+{
+    VC1StoredBlkCtx *s_blkctx = blkctx->s_blkctx;
+    int16_t (*block)[64] = blkctx->block;
+    int16_t *blkidx = mbctx->blkidx;
+    int16_t curr_blkidx, left_blkidx, topleft_blkidx;
+
+    // filter block Y0
+    curr_blkidx = blkidx[BLOCKIDX_Y0];
+    left_blkidx = blkidx[BLOCKIDX_L1];
+    topleft_blkidx = blkidx[BLOCKIDX_LT3];
+    if (s_blkctx[left_blkidx].overlap & s_blkctx[curr_blkidx].overlap)
+        blkctx->vc1dsp->vc1_h_s_overlap(block[left_blkidx],
+                                        block[curr_blkidx],
+                                        8, 8, 1);
+    if (s_blkctx[topleft_blkidx].overlap & s_blkctx[left_blkidx].overlap)
+        blkctx->vc1dsp->vc1_v_s_overlap(block[topleft_blkidx],
+                                        block[left_blkidx]);
+
+    // filter block Y1
+    curr_blkidx = blkidx[BLOCKIDX_Y1];
+    left_blkidx = blkidx[BLOCKIDX_Y0];
+    topleft_blkidx = blkidx[BLOCKIDX_T2];
+    if (s_blkctx[left_blkidx].overlap & s_blkctx[curr_blkidx].overlap)
+        blkctx->vc1dsp->vc1_h_s_overlap(block[left_blkidx],
+                                        block[curr_blkidx],
+                                        8, 8, 1);
+    if (s_blkctx[topleft_blkidx].overlap & s_blkctx[left_blkidx].overlap)
+        blkctx->vc1dsp->vc1_v_s_overlap(block[topleft_blkidx],
+                                        block[left_blkidx]);
+
+    // filter block Y2
+    curr_blkidx = blkidx[BLOCKIDX_Y2];
+    left_blkidx = blkidx[BLOCKIDX_L3];
+    topleft_blkidx = blkidx[BLOCKIDX_L1];
+    if (s_blkctx[left_blkidx].overlap & s_blkctx[curr_blkidx].overlap)
+        blkctx->vc1dsp->vc1_h_s_overlap(block[left_blkidx],
+                                        block[curr_blkidx],
+                                        8, 8, 1);
+    if (s_blkctx[topleft_blkidx].overlap & s_blkctx[left_blkidx].overlap)
+        blkctx->vc1dsp->vc1_v_s_overlap(block[topleft_blkidx],
+                                        block[left_blkidx]);
+
+    // filter block Y3
+    curr_blkidx = blkidx[BLOCKIDX_Y3];
+    left_blkidx = blkidx[BLOCKIDX_Y2];
+    topleft_blkidx = blkidx[BLOCKIDX_Y0];
+    if (s_blkctx[left_blkidx].overlap & s_blkctx[curr_blkidx].overlap)
+        blkctx->vc1dsp->vc1_h_s_overlap(block[left_blkidx],
+                                        block[curr_blkidx],
+                                        8, 8, 1);
+    if (s_blkctx[topleft_blkidx].overlap & s_blkctx[left_blkidx].overlap)
+        blkctx->vc1dsp->vc1_v_s_overlap(block[topleft_blkidx],
+                                        block[left_blkidx]);
+
+    // filter block Cb
+    curr_blkidx = blkidx[BLOCKIDX_CB];
+    left_blkidx = blkidx[BLOCKIDX_CB_L];
+    topleft_blkidx = blkidx[BLOCKIDX_CB_LT];
+    if (s_blkctx[left_blkidx].overlap & s_blkctx[curr_blkidx].overlap)
+        blkctx->vc1dsp->vc1_h_s_overlap(block[left_blkidx],
+                                        block[curr_blkidx],
+                                        8, 8, 1);
+    if (s_blkctx[topleft_blkidx].overlap & s_blkctx[left_blkidx].overlap)
+        blkctx->vc1dsp->vc1_v_s_overlap(block[topleft_blkidx],
+                                        block[left_blkidx]);
+
+    // filter block Cr
+    curr_blkidx = blkidx[BLOCKIDX_CR];
+    left_blkidx = blkidx[BLOCKIDX_CR_L];
+    topleft_blkidx = blkidx[BLOCKIDX_CR_LT];
+    if (s_blkctx[left_blkidx].overlap & s_blkctx[curr_blkidx].overlap)
+        blkctx->vc1dsp->vc1_h_s_overlap(block[left_blkidx],
+                                        block[curr_blkidx],
+                                        8, 8, 1);
+    if (s_blkctx[topleft_blkidx].overlap & s_blkctx[left_blkidx].overlap)
+        blkctx->vc1dsp->vc1_v_s_overlap(block[topleft_blkidx],
+                                        block[left_blkidx]);
+}
+*/
 
 /** Decode blocks of I-frame
  */
@@ -3282,15 +3554,18 @@ static void vc1_decode_i_blocks(VC1Context *v)
     VC1IMBCtx *mbctx = (VC1IMBCtx*)&v->mbctx;
     VC1IntraBlkCtx blkctx;
     GetBitContext *gb = &v->s.gb;
-    int k, j;
+    int k, j, i;
     int mb_pos;
 
+    mbctx->mbtype = MB_I;
+    if (CONFIG_GRAY)
+        mbctx->codec_flag_gray = !!(v->avctx->flags & AV_CODEC_FLAG_GRAY); // TODO: move out of decoding loop
     mbctx->s_blkctx[-1].dc_pred = v->overlap && v->pq >= 9 ? 0 : 1024;
-    mbctx->s_blkctx[-1].is_intra = 1;
-//    mbctx->mb_width = v->end_mb_x;
-//    mbctx->mb_idx = 0;
+    mbctx->s_blkctx[-1].btype = BLOCK_INTRA;
+    mbctx->s_blkctx[-1].overlap = 0;
 
     blkctx.btype = BLOCK_INTRA;
+    blkctx.vc1dsp = &v->vc1dsp;
     blkctx.zz_8x8 = &pict->zz_8x8;
     blkctx.mquant = ((VC1SimplePictCtx*)v->pict)->pquant;
     blkctx.double_quant = 2 * blkctx.mquant + pict->halfqp;
@@ -3300,19 +3575,26 @@ static void vc1_decode_i_blocks(VC1Context *v)
     blkctx.ac_run_code_size = &pict->ac_run_code_size;
     blkctx.esc_mode3_vlc = pict->pquant < 8;
     blkctx.s_blkctx = mbctx->s_blkctx;
+    blkctx.block = mbctx->block;
+    blkctx.use_overlap_xfrm = ((VC1SimpleSeqCtx*)v->seq)->overlap && pict->pquant >= 9;
+    if (!CONFIG_GRAY)
+        blkctx.skip_output = 0;
 
     //do frame decode
+    i = 0;
     s->mb_x = s->mb_y = 0;
     s->mb_intra         = 1;
     s->first_slice_line = 1;
-    mbctx->top_sblkidx = -v->end_mb_x;
-    mbctx->curr_sblkidx = 0;
+
+    init_block_index_new((VC1MBCtx*)mbctx);
     for (s->mb_y = s->start_mb_y; s->mb_y < s->end_mb_y; s->mb_y++) {
         s->mb_x = 0;
         init_block_index(v);
 
         for (; s->mb_x < v->end_mb_x; s->mb_x++) {
+            update_block_index((VC1MBCtx*)mbctx, v->end_mb_x, i++);
             ff_update_block_index(s);
+
             s->bdsp.clear_blocks(v->block[v->cur_blk_idx][0]);
             mb_pos = s->mb_x + s->mb_y * s->mb_width;
             s->current_picture.mb_type[mb_pos]                     = MB_TYPE_INTRA;
@@ -3330,20 +3612,37 @@ static void vc1_decode_i_blocks(VC1Context *v)
             v->mb_type[0][s->block_index[4]] = 1;
             v->mb_type[0][s->block_index[5]] = 1;
 
-            vc1_decode_i_mb(mbctx, &blkctx, v->block[v->cur_blk_idx][0], gb);
+            vc1_decode_i_mb(mbctx,
+                            &blkctx,
+                            gb);
 
-            v->vc1dsp.vc1_inv_trans_8x8(v->block[v->cur_blk_idx][0]);
-            v->vc1dsp.vc1_inv_trans_8x8(v->block[v->cur_blk_idx][1]);
-            v->vc1dsp.vc1_inv_trans_8x8(v->block[v->cur_blk_idx][2]);
-            v->vc1dsp.vc1_inv_trans_8x8(v->block[v->cur_blk_idx][3]);
+//            if (blkctx.use_overlap_xfrm)
+//                vc1_overlap_filter(mbctx,
+//                                   &blkctx);
 
-            if (!CONFIG_GRAY || !(v->avctx->flags & AV_CODEC_FLAG_GRAY)) {
-                v->vc1dsp.vc1_inv_trans_8x8(v->block[v->cur_blk_idx][4]);
-                v->vc1dsp.vc1_inv_trans_8x8(v->block[v->cur_blk_idx][5]);
-            }
+//            if (((VC1SimplePictCtx*)v->pict)->rangeredfrm) {
+//                for (int k = 0; k < 64; k++) {
+//                    (blkctx->block + topleft_blkidx)[k] *= 2;
+//                    (blkctx->block + topleft_blkidx)[k] -= blkctx->use_overlap_xfrm ? 0 : 128;
+//                }
+//            }
 
-            if (v->overlap && v->pq >= 9) {
-                ff_vc1_i_overlap_filter(v);
+            if (blkctx.use_overlap_xfrm) {
+//                ff_vc1_i_overlap_filter(v);
+                if (s->mb_x == v->end_mb_x - 1) {
+                    if (mbctx->s_blkctx[mbctx->blkidx[BLOCKIDX_T3]].overlap & mbctx->s_blkctx[mbctx->blkidx[BLOCKIDX_Y1]].overlap)
+                        blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[mbctx->blkidx[BLOCKIDX_T3]],
+                                                       mbctx->block[mbctx->blkidx[BLOCKIDX_Y1]]);
+                    if (mbctx->s_blkctx[mbctx->blkidx[BLOCKIDX_Y1]].overlap & mbctx->s_blkctx[mbctx->blkidx[BLOCKIDX_Y3]].overlap)
+                        blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[mbctx->blkidx[BLOCKIDX_Y1]],
+                                                       mbctx->block[mbctx->blkidx[BLOCKIDX_Y3]]);
+                    if (mbctx->s_blkctx[mbctx->blkidx[BLOCKIDX_CB_T]].overlap & mbctx->s_blkctx[mbctx->blkidx[BLOCKIDX_CB]].overlap)
+                        blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[mbctx->blkidx[BLOCKIDX_CB_T]],
+                                                       mbctx->block[mbctx->blkidx[BLOCKIDX_CB]]);
+                    if (mbctx->s_blkctx[mbctx->blkidx[BLOCKIDX_CR_T]].overlap & mbctx->s_blkctx[mbctx->blkidx[BLOCKIDX_CR]].overlap)
+                        blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[mbctx->blkidx[BLOCKIDX_CR_T]],
+                                                       mbctx->block[mbctx->blkidx[BLOCKIDX_CR]]);
+                }
                 if (v->rangeredfrm)
                     for (k = 0; k < 6; k++)
                         for (j = 0; j < 64; j++)
@@ -3371,10 +3670,9 @@ static void vc1_decode_i_blocks(VC1Context *v)
             v->top_blk_idx = (v->top_blk_idx + 1) % (v->end_mb_x + 2);
             v->left_blk_idx = (v->left_blk_idx + 1) % (v->end_mb_x + 2);
             v->cur_blk_idx = (v->cur_blk_idx + 1) % (v->end_mb_x + 2);
-
-            mbctx->top_sblkidx = mbctx->top_sblkidx + 1 < 2 * v->end_mb_x ? mbctx->top_sblkidx + 1 : 0;
-            mbctx->curr_sblkidx = mbctx->curr_sblkidx + 1 < 2 * v->end_mb_x ? mbctx->curr_sblkidx + 1 : 0;
         }
+//        update_block_index((VC1MBCtx*)mbctx, v->end_mb_x + 1, i++);
+
         if (!v->s.loop_filter)
             ff_mpeg_draw_horiz_band(s, s->mb_y * 16, 16);
         else if (s->mb_y)
@@ -3537,7 +3835,9 @@ static void vc1_decode_p_blocks(VC1Context *v)
     VC1PPictCtx *pict = (VC1PPictCtx*)v->pict;
     VC1PMBCtx *mbctx = (VC1PMBCtx*)&v->mbctx;
     VC1IntraBlkCtx intra_blkctx;
+    VC1InterBlkCtx inter_blkctx;
     int apply_loop_filter;
+    int i;
 
     /* select coding mode used for VLC tables selection */
     switch (v->c_ac_table_index) {
@@ -3564,27 +3864,51 @@ static void vc1_decode_p_blocks(VC1Context *v)
         break;
     }
 
-    mbctx->s_blkctx[-1].is_intra = 0;
+    mbctx->mbtype = MB_P;
+    if (CONFIG_GRAY)
+        mbctx->codec_flag_gray = !!(v->avctx->flags & AV_CODEC_FLAG_GRAY); // TODO: move out of decoding loop
+    mbctx->s_blkctx[-1].btype = BLOCK_OOB;
+    mbctx->s_blkctx[-1].overlap = 0;
 
     intra_blkctx.btype = BLOCK_INTRA;
+    intra_blkctx.vc1dsp = &v->vc1dsp;
+    intra_blkctx.s_blkctx = mbctx->s_blkctx;
     intra_blkctx.zz_8x8 = &pict->zz_8x8;
     intra_blkctx.fasttx = ((VC1SimpleSeqCtx*)v->seq)->res_fasttx;
     intra_blkctx.ac_level_code_size = &pict->ac_level_code_size;
     intra_blkctx.ac_run_code_size = &pict->ac_run_code_size;
     intra_blkctx.esc_mode3_vlc = pict->pquant < 8 || pict->dquant_inframe;
-    intra_blkctx.use_cbpcy_pred = 0;
-    intra_blkctx.s_blkctx = mbctx->s_blkctx;
+    intra_blkctx.block = mbctx->block;
+//    intra_blkctx.use_overlap_xfrm = ((VC1SimpleSeqCtx*)v->seq)->overlap && pict->pquant >= 9;
+    intra_blkctx.use_overlap_xfrm = 0;
+    if (!CONFIG_GRAY)
+        intra_blkctx.skip_output = 0;
+
+    inter_blkctx.btype = BLOCK_INTER;
+    inter_blkctx.vc1dsp = &v->vc1dsp;
+    inter_blkctx.s_blkctx = mbctx->s_blkctx;
+    inter_blkctx.idsp = &s->idsp;
+    inter_blkctx.block = mbctx->block;
+//    inter_blkctx.use_overlap_xfrm = ((VC1SimpleSeqCtx*)v->seq)->overlap && pict->pquant >= 9;
+    inter_blkctx.use_overlap_xfrm = 0;
+    inter_blkctx.res_rtm_flag = v->seq->profile == PROFILE_ADVANCED ||
+                                ((VC1SimpleSeqCtx*)v->seq)->res_rtm_flag;
+    if (!CONFIG_GRAY)
+        inter_blkctx.skip_output = 0;
 
     apply_loop_filter   = s->loop_filter && !(s->avctx->skip_loop_filter >= AVDISCARD_NONKEY);
     s->first_slice_line = v->slicectx.first_line = 1;
     memset(v->cbp_base, 0, sizeof(v->cbp_base[0]) * 3 * s->mb_stride);
-    mbctx->top_sblkidx = -s->mb_width;
-    mbctx->curr_sblkidx = 0;
+
+    i = 0;
+
+    init_block_index_new((VC1MBCtx*)mbctx);
     for (s->mb_y = s->start_mb_y; s->mb_y < s->end_mb_y; s->mb_y++) {
         s->mb_x = 0;
         init_block_index(v);
 
         for (; s->mb_x < s->mb_width; s->mb_x++) {
+            update_block_index((VC1MBCtx*)mbctx, s->mb_width, i++);
             ff_update_block_index(s);
 
             if (v->fcm == ILACE_FIELD) {
@@ -3596,7 +3920,7 @@ static void vc1_decode_p_blocks(VC1Context *v)
                 if (apply_loop_filter)
                     ff_vc1_p_intfr_loop_filter(v);
             } else {
-                vc1_decode_p_mb(v, mbctx, &intra_blkctx, gb);
+                vc1_decode_p_mb(v, mbctx, &intra_blkctx, &inter_blkctx, gb);
                 if (apply_loop_filter)
                     ff_vc1_p_loop_filter(v);
             }
@@ -3612,9 +3936,10 @@ static void vc1_decode_p_blocks(VC1Context *v)
             inc_blk_idx(v->left_blk_idx);
             inc_blk_idx(v->cur_blk_idx);
 
-            mbctx->top_sblkidx = mbctx->top_sblkidx + 1 < 2 * s->mb_width ? mbctx->top_sblkidx + 1 : 0;
-            mbctx->curr_sblkidx = mbctx->curr_sblkidx + 1 < 2 * s->mb_width ? mbctx->curr_sblkidx + 1 : 0;
+//            update_block_index((VC1MBCtx*)mbctx, s->mb_width, ++i);
         }
+//        update_block_index((VC1MBCtx*)mbctx, s->mb_width + 1, ++i);
+
         memmove(v->cbp_base,
                 v->cbp - s->mb_stride,
                 sizeof(v->cbp_base[0]) * 2 * s->mb_stride);

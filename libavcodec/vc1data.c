@@ -1138,9 +1138,27 @@ const uint8_t ff_vc1_high_rate_ttmb_bits[16] = {
        5,   10,    9,    9,   12,   12,   11,    9
 };
 
+//const uint8_t ff_vc1_high_rate_ttmb_symbols[16] = {
+//      15,   35,   44,   47,   69,   74,   79,   96,
+//      31,   51,   60,   63,   85,   90,   95,  112
+//};
 const uint8_t ff_vc1_high_rate_ttmb_symbols[16] = {
-      15,   35,   44,   47,   69,   74,   79,   96,
-      31,   51,   60,   63,   85,   90,   95,  112
+      TT_8x8_new | SIGNALLEVEL_BLOCK | SUBBLOCK_ALL,
+      TT_8x4_new | SIGNALLEVEL_BLOCK | SUBBLOCK_BOTTOM,
+      TT_8x4_new | SIGNALLEVEL_BLOCK | SUBBLOCK_TOP,
+      TT_8x4_new | SIGNALLEVEL_BLOCK | SUBBLOCK_BOTH,
+      TT_4x8_new | SIGNALLEVEL_BLOCK | SUBBLOCK_RIGHT,
+      TT_4x8_new | SIGNALLEVEL_BLOCK | SUBBLOCK_LEFT,
+      TT_4x8_new | SIGNALLEVEL_BLOCK | SUBBLOCK_BOTH,
+      TT_4x4_new | SIGNALLEVEL_BLOCK,
+      TT_8x8_new | SIGNALLEVEL_MB | SUBBLOCK_ALL,
+      TT_8x4_new | SIGNALLEVEL_MB | SUBBLOCK_BOTTOM,
+      TT_8x4_new | SIGNALLEVEL_MB | SUBBLOCK_TOP,
+      TT_8x4_new | SIGNALLEVEL_MB | SUBBLOCK_BOTH,
+      TT_4x8_new | SIGNALLEVEL_MB | SUBBLOCK_RIGHT,
+      TT_4x8_new | SIGNALLEVEL_MB | SUBBLOCK_LEFT,
+      TT_4x8_new | SIGNALLEVEL_MB | SUBBLOCK_BOTH,
+      TT_4x4_new | SIGNALLEVEL_MB
 };
 
 /* Medium Rate TTMB VLC Table (Table 55)
@@ -1156,9 +1174,27 @@ const uint8_t ff_vc1_med_rate_ttmb_bits[16] = {
       2,   7,   7,   6,   6,   8,   7,   8
 };
 
+//const uint8_t ff_vc1_med_rate_ttmb_symbols[16] = {
+//     15,  35,  44,  47,  69,  74,  79,  96,
+//     31,  51,  60,  63,  85,  90,  95, 112
+//};
 const uint8_t ff_vc1_med_rate_ttmb_symbols[16] = {
-     15,  35,  44,  47,  69,  74,  79,  96,
-     31,  51,  60,  63,  85,  90,  95, 112
+      TT_8x8_new | SIGNALLEVEL_BLOCK | SUBBLOCK_ALL,
+      TT_8x4_new | SIGNALLEVEL_BLOCK | SUBBLOCK_BOTTOM,
+      TT_8x4_new | SIGNALLEVEL_BLOCK | SUBBLOCK_TOP,
+      TT_8x4_new | SIGNALLEVEL_BLOCK | SUBBLOCK_BOTH,
+      TT_4x8_new | SIGNALLEVEL_BLOCK | SUBBLOCK_RIGHT,
+      TT_4x8_new | SIGNALLEVEL_BLOCK | SUBBLOCK_LEFT,
+      TT_4x8_new | SIGNALLEVEL_BLOCK | SUBBLOCK_BOTH,
+      TT_4x4_new | SIGNALLEVEL_BLOCK,
+      TT_8x8_new | SIGNALLEVEL_MB | SUBBLOCK_ALL,
+      TT_8x4_new | SIGNALLEVEL_MB | SUBBLOCK_BOTTOM,
+      TT_8x4_new | SIGNALLEVEL_MB | SUBBLOCK_TOP,
+      TT_8x4_new | SIGNALLEVEL_MB | SUBBLOCK_BOTH,
+      TT_4x8_new | SIGNALLEVEL_MB | SUBBLOCK_RIGHT,
+      TT_4x8_new | SIGNALLEVEL_MB | SUBBLOCK_LEFT,
+      TT_4x8_new | SIGNALLEVEL_MB | SUBBLOCK_BOTH,
+      TT_4x4_new | SIGNALLEVEL_MB
 };
 
 /* Low Rate TTMB VLC Table (Table 56)
@@ -1174,9 +1210,27 @@ const uint8_t ff_vc1_low_rate_ttmb_bits[16] = {
       2,  10,   8,   6,  11,   9,   7,  11
 };
 
+//const uint8_t ff_vc1_low_rate_ttmb_symbols[16] = {
+//     15,  35,  44,  47,  69,  74,  79,  96,
+//     31,  51,  60,  63,  85,  90,  95, 112
+//};
 const uint8_t ff_vc1_low_rate_ttmb_symbols[16] = {
-     15,  35,  44,  47,  69,  74,  79,  96,
-     31,  51,  60,  63,  85,  90,  95, 112
+      TT_8x8_new | SIGNALLEVEL_BLOCK | SUBBLOCK_ALL,
+      TT_8x4_new | SIGNALLEVEL_BLOCK | SUBBLOCK_BOTTOM,
+      TT_8x4_new | SIGNALLEVEL_BLOCK | SUBBLOCK_TOP,
+      TT_8x4_new | SIGNALLEVEL_BLOCK | SUBBLOCK_BOTH,
+      TT_4x8_new | SIGNALLEVEL_BLOCK | SUBBLOCK_RIGHT,
+      TT_4x8_new | SIGNALLEVEL_BLOCK | SUBBLOCK_LEFT,
+      TT_4x8_new | SIGNALLEVEL_BLOCK | SUBBLOCK_BOTH,
+      TT_4x4_new | SIGNALLEVEL_BLOCK,
+      TT_8x8_new | SIGNALLEVEL_MB | SUBBLOCK_ALL,
+      TT_8x4_new | SIGNALLEVEL_MB | SUBBLOCK_BOTTOM,
+      TT_8x4_new | SIGNALLEVEL_MB | SUBBLOCK_TOP,
+      TT_8x4_new | SIGNALLEVEL_MB | SUBBLOCK_BOTH,
+      TT_4x8_new | SIGNALLEVEL_MB | SUBBLOCK_RIGHT,
+      TT_4x8_new | SIGNALLEVEL_MB | SUBBLOCK_LEFT,
+      TT_4x8_new | SIGNALLEVEL_MB | SUBBLOCK_BOTH,
+      TT_4x4_new | SIGNALLEVEL_MB
 };
 
 /* High Rate TTBLK VLC Table (Table 62)
@@ -1190,8 +1244,18 @@ const uint8_t ff_vc1_high_rate_ttblk_bits[8] = {
      2,  2,  2,  3,  5,  5,  5,  5
 };
 
+//const uint8_t ff_vc1_high_rate_ttblk_symbols[8] = {
+//    47, 79, 15, 96, 44, 35, 69, 74
+//};
 const uint8_t ff_vc1_high_rate_ttblk_symbols[8] = {
-    47, 79, 15, 96, 44, 35, 69, 74
+      TT_8x4_new | SUBBLOCK_BOTH,
+      TT_4x8_new | SUBBLOCK_BOTH,
+      TT_8x8_new | SUBBLOCK_ALL,
+      TT_4x4_new,
+      TT_8x4_new | SUBBLOCK_TOP,
+      TT_8x4_new | SUBBLOCK_BOTTOM,
+      TT_4x8_new | SUBBLOCK_RIGHT,
+      TT_4x8_new | SUBBLOCK_LEFT
 };
 
 /* Medium Rate TTBLK VLC Table (Table 63)
@@ -1205,8 +1269,18 @@ const uint8_t ff_vc1_med_rate_ttblk_bits[8] = {
      2,  3,  3,  3,  3,  3,  4,  4
 };
 
+//const uint8_t ff_vc1_med_rate_ttblk_symbols[8] = {
+//    15, 69, 74, 96, 47, 79, 35, 44
+//};
 const uint8_t ff_vc1_med_rate_ttblk_symbols[8] = {
-    15, 69, 74, 96, 47, 79, 35, 44
+      TT_8x8_new | SUBBLOCK_ALL,
+      TT_4x8_new | SUBBLOCK_RIGHT,
+      TT_4x8_new | SUBBLOCK_LEFT,
+      TT_4x4_new,
+      TT_8x4_new | SUBBLOCK_BOTH,
+      TT_4x8_new | SUBBLOCK_BOTH,
+      TT_8x4_new | SUBBLOCK_BOTTOM,
+      TT_8x4_new | SUBBLOCK_TOP
 };
 
 /* Low Rate TTBLK VLC Table (Table 64)
@@ -1220,8 +1294,18 @@ const uint8_t ff_vc1_low_rate_ttblk_bits[8] = {
      2,  3,  3,  3,  3,  3,  4,  4
 };
 
+//const uint8_t ff_vc1_low_rate_ttblk_symbols[8] = {
+//    15, 79, 96, 35, 69, 74, 47, 44
+//};
 const uint8_t ff_vc1_low_rate_ttblk_symbols[8] = {
-    15, 79, 96, 35, 69, 74, 47, 44
+      TT_8x8_new | SUBBLOCK_ALL,
+      TT_4x8_new | SUBBLOCK_BOTH,
+      TT_4x4_new,
+      TT_8x4_new | SUBBLOCK_BOTTOM,
+      TT_4x8_new | SUBBLOCK_RIGHT,
+      TT_4x8_new | SUBBLOCK_LEFT,
+      TT_8x4_new | SUBBLOCK_BOTH,
+      TT_8x4_new | SUBBLOCK_TOP
 };
 
 /* High Rate SUBBLKPAT VLC Table (Table 65)
