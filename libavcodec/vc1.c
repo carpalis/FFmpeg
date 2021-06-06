@@ -407,67 +407,67 @@ void vc1_init_sequence_context_smc(VC1Context *v)
                  ff_vc1_i_cbpcy_bits, 1, 1,
                  ff_vc1_i_cbpcy_codes, 2, 2, 0);
 
-    if (v->dc_diff_vlc[0][COMPONENT_LUMA].table == NULL)
-        init_vlc(&v->dc_diff_vlc[0][COMPONENT_LUMA], 9, 120,
+    if (v->dc_diff_vlc[0][COMPONENT_TYPE_LUMA].table == NULL)
+        init_vlc(&v->dc_diff_vlc[0][COMPONENT_TYPE_LUMA], 9, 120,
                  ff_vc1_low_motion_luma_dc_bits, 1, 1,
                  ff_vc1_low_motion_luma_dc_codes, 4, 4, 0);
-    if (v->dc_diff_vlc[0][COMPONENT_CHROMA].table == NULL)
-        init_vlc(&v->dc_diff_vlc[0][COMPONENT_CHROMA], 9, 120,
+    if (v->dc_diff_vlc[0][COMPONENT_TYPE_CHROMA].table == NULL)
+        init_vlc(&v->dc_diff_vlc[0][COMPONENT_TYPE_CHROMA], 9, 120,
                  ff_vc1_low_motion_chroma_dc_bits, 1, 1,
                  ff_vc1_low_motion_chroma_dc_codes, 4, 4, 0);
-    if (v->dc_diff_vlc[1][COMPONENT_LUMA].table == NULL)
-        init_vlc(&v->dc_diff_vlc[1][COMPONENT_LUMA], 9, 120,
+    if (v->dc_diff_vlc[1][COMPONENT_TYPE_LUMA].table == NULL)
+        init_vlc(&v->dc_diff_vlc[1][COMPONENT_TYPE_LUMA], 9, 120,
                  ff_vc1_high_motion_luma_dc_bits, 1, 1,
                  ff_vc1_high_motion_luma_dc_codes, 4, 4, 0);
-    if (v->dc_diff_vlc[1][COMPONENT_CHROMA].table == NULL)
-        init_vlc(&v->dc_diff_vlc[1][COMPONENT_CHROMA], 9, 120,
+    if (v->dc_diff_vlc[1][COMPONENT_TYPE_CHROMA].table == NULL)
+        init_vlc(&v->dc_diff_vlc[1][COMPONENT_TYPE_CHROMA], 9, 120,
                  ff_vc1_high_motion_chroma_dc_bits, 1, 1,
                  ff_vc1_high_motion_chroma_dc_codes, 4, 4, 0);
 
-    if (v->ac_coding_vlc[CS_HIGH_RATE][COMPONENT_LUMA].table == NULL) {
-        ff_init_vlc_sparse(&v->ac_coding_vlc[CS_HIGH_RATE][COMPONENT_LUMA], 9, 165,
+    if (v->ac_coding_vlc[CS_HIGH_RATE][COMPONENT_TYPE_LUMA].table == NULL) {
+        ff_init_vlc_sparse(&v->ac_coding_vlc[CS_HIGH_RATE][COMPONENT_TYPE_LUMA], 9, 165,
                            ff_vc1_high_rate_intra_index_bits, 1, 1,
                            ff_vc1_high_rate_intra_index_codes, 2, 2,
                            ff_vc1_high_rate_intra_index_symbols, 2, 2, 0);
     }
-    if (v->ac_coding_vlc[CS_HIGH_RATE][COMPONENT_CHROMA].table == NULL) {
-        ff_init_vlc_sparse(&v->ac_coding_vlc[CS_HIGH_RATE][COMPONENT_CHROMA], 9, 177,
+    if (v->ac_coding_vlc[CS_HIGH_RATE][COMPONENT_TYPE_CHROMA].table == NULL) {
+        ff_init_vlc_sparse(&v->ac_coding_vlc[CS_HIGH_RATE][COMPONENT_TYPE_CHROMA], 9, 177,
                            ff_vc1_high_rate_inter_index_bits, 1, 1,
                            ff_vc1_high_rate_inter_index_codes, 4, 4,
                            ff_vc1_high_rate_inter_index_symbols, 2, 2, 0);
     }
-    if (v->ac_coding_vlc[CS_LOW_MOTION][COMPONENT_LUMA].table == NULL) {
-        ff_init_vlc_sparse(&v->ac_coding_vlc[CS_LOW_MOTION][COMPONENT_LUMA], 9, 135,
+    if (v->ac_coding_vlc[CS_LOW_MOTION][COMPONENT_TYPE_LUMA].table == NULL) {
+        ff_init_vlc_sparse(&v->ac_coding_vlc[CS_LOW_MOTION][COMPONENT_TYPE_LUMA], 9, 135,
                            ff_vc1_low_motion_intra_index_bits, 1, 1,
                            ff_vc1_low_motion_intra_index_codes, 2, 2,
                            ff_vc1_low_motion_intra_index_symbols, 2, 2, 0);
     }
-    if (v->ac_coding_vlc[CS_LOW_MOTION][COMPONENT_CHROMA].table == NULL) {
-        ff_init_vlc_sparse(&v->ac_coding_vlc[CS_LOW_MOTION][COMPONENT_CHROMA], 9, 151,
+    if (v->ac_coding_vlc[CS_LOW_MOTION][COMPONENT_TYPE_CHROMA].table == NULL) {
+        ff_init_vlc_sparse(&v->ac_coding_vlc[CS_LOW_MOTION][COMPONENT_TYPE_CHROMA], 9, 151,
                            ff_vc1_low_motion_inter_index_bits, 1, 1,
                            ff_vc1_low_motion_inter_index_codes, 2, 2,
                            ff_vc1_low_motion_inter_index_symbols, 2, 2, 0);
     }
-    if (v->ac_coding_vlc[CS_HIGH_MOTION][COMPONENT_LUMA].table == NULL) {
-        ff_init_vlc_sparse(&v->ac_coding_vlc[CS_HIGH_MOTION][COMPONENT_LUMA], 9, 188,
+    if (v->ac_coding_vlc[CS_HIGH_MOTION][COMPONENT_TYPE_LUMA].table == NULL) {
+        ff_init_vlc_sparse(&v->ac_coding_vlc[CS_HIGH_MOTION][COMPONENT_TYPE_LUMA], 9, 188,
                            ff_vc1_high_motion_intra_index_bits, 1, 1,
                            ff_vc1_high_motion_intra_index_codes, 2, 2,
                            ff_vc1_high_motion_intra_index_symbols, 2, 2, 0);
     }
-    if (v->ac_coding_vlc[CS_HIGH_MOTION][COMPONENT_CHROMA].table == NULL) {
-        ff_init_vlc_sparse(&v->ac_coding_vlc[CS_HIGH_MOTION][COMPONENT_CHROMA], 9, 171,
+    if (v->ac_coding_vlc[CS_HIGH_MOTION][COMPONENT_TYPE_CHROMA].table == NULL) {
+        ff_init_vlc_sparse(&v->ac_coding_vlc[CS_HIGH_MOTION][COMPONENT_TYPE_CHROMA], 9, 171,
                            ff_vc1_high_motion_inter_index_bits, 1, 1,
                            ff_vc1_high_motion_inter_index_codes, 2, 2,
                            ff_vc1_high_motion_inter_index_symbols, 2, 2, 0);
     }
-    if (v->ac_coding_vlc[CS_MID_RATE][COMPONENT_LUMA].table == NULL) {
-        ff_init_vlc_sparse(&v->ac_coding_vlc[CS_MID_RATE][COMPONENT_LUMA], 9, 105,
+    if (v->ac_coding_vlc[CS_MID_RATE][COMPONENT_TYPE_LUMA].table == NULL) {
+        ff_init_vlc_sparse(&v->ac_coding_vlc[CS_MID_RATE][COMPONENT_TYPE_LUMA], 9, 105,
                            ff_vc1_mid_rate_intra_index_bits, 1, 1,
                            ff_vc1_mid_rate_intra_index_codes, 1, 1,
                            ff_vc1_mid_rate_intra_index_symbols, 2, 2, 0);
     }
-    if (v->ac_coding_vlc[CS_MID_RATE][COMPONENT_CHROMA].table == NULL) {
-        ff_init_vlc_sparse(&v->ac_coding_vlc[CS_MID_RATE][COMPONENT_CHROMA], 9, 105,
+    if (v->ac_coding_vlc[CS_MID_RATE][COMPONENT_TYPE_CHROMA].table == NULL) {
+        ff_init_vlc_sparse(&v->ac_coding_vlc[CS_MID_RATE][COMPONENT_TYPE_CHROMA], 9, 105,
                            ff_vc1_mid_rate_inter_index_bits, 1, 1,
                            ff_vc1_mid_rate_inter_index_codes, 1, 1,
                            ff_vc1_mid_rate_inter_index_symbols, 2, 2, 0);
@@ -638,6 +638,7 @@ void vc1_update_picture_context_smc(VC1Context *v)
     VC1BPictCtx *b_pict = (VC1BPictCtx*)v->pict;
 
     //PQUANT
+    v->mbctx.pquant = simple_pict->pquant;
     v->mbctx.ttmb_vlc = &v->ttmb_vlc[(simple_pict->pquant > 4) + (simple_pict->pquant > 12)];
     v->mbctx.ttblk_vlc = &v->ttblk_vlc[(simple_pict->pquant > 4) + (simple_pict->pquant > 12)];
     v->mbctx.subblkpat_vlc = &v->subblkpat_vlc[(simple_pict->pquant > 4) + (simple_pict->pquant > 12)];
@@ -684,11 +685,11 @@ void vc1_update_picture_context_smc(VC1Context *v)
         v->mbctx.tt = b_pict->tt;
 
     // TRANSACFRM
-    v->mbctx.ac_coding_set[COMPONENT_CHROMA] = ff_vc1_ac_coding_set[simple_pict->transacfrm][COMPONENT_CHROMA];
-    v->mbctx.ac_coding_set[COMPONENT_CHROMA].index_vlc = &v->ac_coding_vlc[simple_pict->transacfrm][COMPONENT_CHROMA];
+    v->mbctx.ac_coding_set[COMPONENT_TYPE_CHROMA] = ff_vc1_ac_coding_set[simple_pict->transacfrm][COMPONENT_TYPE_CHROMA];
+    v->mbctx.ac_coding_set[COMPONENT_TYPE_CHROMA].index_vlc = &v->ac_coding_vlc[simple_pict->transacfrm][COMPONENT_TYPE_CHROMA];
     // TRANSACFRM2
-    v->mbctx.ac_coding_set[COMPONENT_LUMA] = ff_vc1_ac_coding_set[simple_pict->transacfrm2][COMPONENT_LUMA];
-    v->mbctx.ac_coding_set[COMPONENT_LUMA].index_vlc = &v->ac_coding_vlc[simple_pict->transacfrm2][COMPONENT_LUMA];
+    v->mbctx.ac_coding_set[COMPONENT_TYPE_LUMA] = ff_vc1_ac_coding_set[simple_pict->transacfrm2][COMPONENT_TYPE_LUMA];
+    v->mbctx.ac_coding_set[COMPONENT_TYPE_LUMA].index_vlc = &v->ac_coding_vlc[simple_pict->transacfrm2][COMPONENT_TYPE_LUMA];
     // TRANSDCTAB
     v->mbctx.dc_diff_vlc = v->dc_diff_vlc[simple_pict->transdctab];
 }

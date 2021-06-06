@@ -1350,7 +1350,7 @@ const int8_t ff_vc1_dc_scale_table[32] = {
 /* AC Coding Sets (Tables 71 & 72) as specified in 8.1.3.4
  * VC1ACCodingSet ff_vc1_ac_coding_set[CodingSet][PictureComponent]
  */
-const VC1ACCodingSet ff_vc1_ac_coding_set[CS_MAX][COMPONENT_MAX] = {
+const VC1ACCodingSet ff_vc1_ac_coding_set[CS_MAX][COMPONENT_TYPE_MAX] = {
     {
         {
             .index_vlc = NULL,

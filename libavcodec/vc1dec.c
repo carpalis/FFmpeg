@@ -673,19 +673,19 @@ av_cold int ff_vc1_decode_end(AVCodecContext *avctx)
     ff_free_vlc(&v->new_cbpcy_vlc[3]);
     ff_free_vlc(&v->new_cbpcy_vlc[4]);
 
-    ff_free_vlc(&v->dc_diff_vlc[0][COMPONENT_LUMA]);
-    ff_free_vlc(&v->dc_diff_vlc[0][COMPONENT_CHROMA]);
-    ff_free_vlc(&v->dc_diff_vlc[1][COMPONENT_LUMA]);
-    ff_free_vlc(&v->dc_diff_vlc[1][COMPONENT_CHROMA]);
+    ff_free_vlc(&v->dc_diff_vlc[0][COMPONENT_TYPE_LUMA]);
+    ff_free_vlc(&v->dc_diff_vlc[0][COMPONENT_TYPE_CHROMA]);
+    ff_free_vlc(&v->dc_diff_vlc[1][COMPONENT_TYPE_LUMA]);
+    ff_free_vlc(&v->dc_diff_vlc[1][COMPONENT_TYPE_CHROMA]);
 
-    ff_free_vlc(&v->ac_coding_vlc[CS_HIGH_RATE][COMPONENT_LUMA]);
-    ff_free_vlc(&v->ac_coding_vlc[CS_HIGH_RATE][COMPONENT_CHROMA]);
-    ff_free_vlc(&v->ac_coding_vlc[CS_LOW_MOTION][COMPONENT_LUMA]);
-    ff_free_vlc(&v->ac_coding_vlc[CS_LOW_MOTION][COMPONENT_CHROMA]);
-    ff_free_vlc(&v->ac_coding_vlc[CS_HIGH_MOTION][COMPONENT_LUMA]);
-    ff_free_vlc(&v->ac_coding_vlc[CS_HIGH_MOTION][COMPONENT_CHROMA]);
-    ff_free_vlc(&v->ac_coding_vlc[CS_MID_RATE][COMPONENT_LUMA]);
-    ff_free_vlc(&v->ac_coding_vlc[CS_MID_RATE][COMPONENT_CHROMA]);
+    ff_free_vlc(&v->ac_coding_vlc[CS_HIGH_RATE][COMPONENT_TYPE_LUMA]);
+    ff_free_vlc(&v->ac_coding_vlc[CS_HIGH_RATE][COMPONENT_TYPE_CHROMA]);
+    ff_free_vlc(&v->ac_coding_vlc[CS_LOW_MOTION][COMPONENT_TYPE_LUMA]);
+    ff_free_vlc(&v->ac_coding_vlc[CS_LOW_MOTION][COMPONENT_TYPE_CHROMA]);
+    ff_free_vlc(&v->ac_coding_vlc[CS_HIGH_MOTION][COMPONENT_TYPE_LUMA]);
+    ff_free_vlc(&v->ac_coding_vlc[CS_HIGH_MOTION][COMPONENT_TYPE_CHROMA]);
+    ff_free_vlc(&v->ac_coding_vlc[CS_MID_RATE][COMPONENT_TYPE_LUMA]);
+    ff_free_vlc(&v->ac_coding_vlc[CS_MID_RATE][COMPONENT_TYPE_CHROMA]);
 
     ff_free_vlc(&v->ttmb_vlc[0]);
     ff_free_vlc(&v->ttmb_vlc[1]);
