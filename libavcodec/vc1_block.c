@@ -743,13 +743,15 @@ static int vc1_decode_ac_coeff_simple(VC1BlkCtx *blkctx,
     return i;
 }
 
-static inline void vc1_predict_intra_coeff(VC1IntraBlkCtx *blkctx)
+static inline void vc1_predict_intra_coeff(VC1IntraBlkCtx *blkctx,
+                                           int curr_blkidx, int top_blkidx,
+                                           int topleft_blkidx, int left_blkidx)
 {
-    VC1StoredBlkCtx *curr_sblkctx = blkctx->s_blkctx + blkctx->curr_idx;
-    VC1StoredBlkCtx *pred_a_sblkctx = blkctx->s_blkctx + blkctx->top_idx;
-    VC1StoredBlkCtx *pred_b_sblkctx = blkctx->s_blkctx + blkctx->topleft_idx;
-    VC1StoredBlkCtx *pred_c_sblkctx = blkctx->s_blkctx + blkctx->left_idx;
-    int16_t *block = blkctx->block[blkctx->curr_idx];
+    VC1StoredBlkCtx *curr_sblkctx = blkctx->s_blkctx + curr_blkidx;
+    VC1StoredBlkCtx *pred_a_sblkctx = blkctx->s_blkctx + top_blkidx;
+    VC1StoredBlkCtx *pred_b_sblkctx = blkctx->s_blkctx + topleft_blkidx;
+    VC1StoredBlkCtx *pred_c_sblkctx = blkctx->s_blkctx + left_blkidx;
+    int16_t *block = blkctx->block[curr_blkidx];
     int dc_dqscale = ff_vc1_dqscale[ff_vc1_dc_scale_table[blkctx->mquant]];
     int a_avail = (pred_a_sblkctx->btype & ~BLOCK_OOB) == BLOCK_INTRA;
     int b_avail = (pred_b_sblkctx->btype & ~BLOCK_OOB) == BLOCK_INTRA;
@@ -797,10 +799,11 @@ static inline void vc1_predict_intra_coeff(VC1IntraBlkCtx *blkctx)
 }
 
 static int vc1_decode_intra_diff(VC1IntraBlkCtx *blkctx,
+                                 int curr_blkidx,
                                  GetBitContext *gb)
 {
-    VC1StoredBlkCtx *curr_sblkctx = blkctx->s_blkctx + blkctx->curr_idx;
-    int16_t *block = blkctx->block[blkctx->curr_idx];
+    VC1StoredBlkCtx *curr_sblkctx = blkctx->s_blkctx + curr_blkidx;
+    int16_t *block = blkctx->block[curr_blkidx];
     int mquant = blkctx->mquant;
     int double_quant = blkctx->double_quant;
     int quant_scale = blkctx->quant_scale;
@@ -871,17 +874,12 @@ static int vc1_decode_intra_block_new(VC1MBCtx* mbctx,
     int16_t (*block)[64] = blkctx->block;
     int ret;
 
-    blkctx->curr_idx = curr_blkidx;
-    blkctx->top_idx = top_blkidx;
-    blkctx->topleft_idx = topleft_blkidx;
-    blkctx->left_idx = left_blkidx;
-
     sblkctx[curr_blkidx].btype = BLOCK_INTRA;
     sblkctx[curr_blkidx].dest = blkctx->dest;
 
-    vc1_predict_intra_coeff(blkctx);
+    vc1_predict_intra_coeff(blkctx, curr_blkidx, top_blkidx, topleft_blkidx, left_blkidx);
 
-    ret = vc1_decode_intra_diff(blkctx, gb);
+    ret = vc1_decode_intra_diff(blkctx, curr_blkidx, gb);
     if (ret < 0)
         return ret;
 
@@ -1518,15 +1516,15 @@ static int vc1_decode_p_block(VC1Context *v, int16_t block[64], int n,
 
 static int vc1_decode_inter_block(VC1Context *v,
                                   VC1InterBlkCtx *blkctx,
+                                  int curr_blkidx,
                                   int n,
                                   int *ttmb_out,
                                   GetBitContext *gb)
 {
     VC1DSPContext *vc1dsp = blkctx->vc1dsp;
     VC1StoredBlkCtx *sblkctx = blkctx->s_blkctx;
-    int16_t *block = blkctx->block[blkctx->curr_idx];
+    int16_t *block = blkctx->block[curr_blkidx];
     uint8_t *dest = blkctx->dest;
-    int curr_blkidx = blkctx->curr_idx;
     int linesize = blkctx->linesize;
     int subblkpat;
     int ret;
@@ -1746,15 +1744,11 @@ static int vc1_decode_p_block_new(VC1Context *v,
     int linesize = blkctx->linesize;
     int ret;
 
-    blkctx->curr_idx = curr_blkidx;
-    blkctx->topleft_idx = topleft_blkidx;
-    blkctx->left_idx = left_blkidx;
-
     sblkctx[curr_blkidx].btype = blkctx->btype;
 
     switch (blkctx->btype) {
     case BLOCK_INTER:
-        ret = vc1_decode_inter_block(v, (VC1InterBlkCtx*)blkctx, n, ttmb_out, gb);
+        ret = vc1_decode_inter_block(v, (VC1InterBlkCtx*)blkctx, curr_blkidx, n, ttmb_out, gb);
         if (ret < 0)
             return ret;
 

@@ -493,7 +493,6 @@ typedef struct VC1StoredMBCtx {
     int8_t *ac_run_code_size; \
     uint8_t *dest; \
     ptrdiff_t linesize; \
-    int16_t curr_idx, top_idx, topleft_idx, left_idx; \
     uint8_t btype; \
     int8_t use_ac_pred; \
     int8_t esc_mode3_vlc; \
