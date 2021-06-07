@@ -80,12 +80,7 @@ enum BlockType {
 };
 
 enum BlockIdx {
-    BLOCKIDX_Y0,
-    BLOCKIDX_Y1,
-    BLOCKIDX_Y2,
-    BLOCKIDX_Y3,
-    BLOCKIDX_CB,
-    BLOCKIDX_CR,
+    BLOCKIDX_MB,
     BLOCKIDX_T2,
     BLOCKIDX_T3,
     BLOCKIDX_CB_T,
