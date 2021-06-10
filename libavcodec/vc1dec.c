@@ -326,7 +326,7 @@ static av_cold int vc1_init_stored_blk_ctx(VC1Context *v)
     MpegEncContext *s = &v->s;
 
     // TODO: size array to MAX_CODED_WIDTH
-    v->s_blkctx_base = av_malloc(sizeof(VC1StoredBlkCtx) * (6 * s->mb_width + 19));
+    v->s_blkctx_base = av_malloc(sizeof(VC1StoredBlkCtx) * (6 * s->mb_width + 13));
     if (!v->s_blkctx_base)
         return AVERROR(ENOMEM);
 
@@ -336,7 +336,8 @@ static av_cold int vc1_init_stored_blk_ctx(VC1Context *v)
         (VC1StoredBlkCtx){
             .ac_pred_top = { 0 },
             .ac_pred_left = { 0 },
-            .is_coded = 0
+            .is_coded = 0,
+            .overlap = 0
         };
 
     return 0;
@@ -351,6 +352,12 @@ av_cold int ff_vc1_decode_init_alloc_tables(VC1Context *v)
     ret = vc1_init_stored_blk_ctx(v);
     if (ret < 0)
         return ret;
+
+    // TODO: size array to MAX_CODED_WIDTH
+    v->loopctx = av_malloc(sizeof(VC1LoopfilterCtx) * (6 * s->mb_width + 12));
+    if (!v->loopctx)
+        return AVERROR(ENOMEM);
+    v->mbctx.loopctx = v->loopctx;
 
     /* Allocate mb bitplanes */
     v->mv_type_mb_plane = av_malloc (s->mb_stride * mb_height);
@@ -666,6 +673,7 @@ av_cold int ff_vc1_decode_end(AVCodecContext *avctx)
     av_freep(&v->seq);
     av_freep(&v->pict);
     av_freep(&v->s_blkctx_base);
+    av_freep(&v->loopctx);
 
     ff_free_vlc(&v->new_cbpcy_vlc[0]);
     ff_free_vlc(&v->new_cbpcy_vlc[1]);
