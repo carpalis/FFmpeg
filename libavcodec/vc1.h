@@ -84,13 +84,10 @@ enum BlockType {
     BLOCK_INTRA_OOB = BLOCK_INTRA | BLOCK_OOB
 };
 
-enum BlockIdx {
+/* Do not change order; optimzed for memcpy */
+enum BlockIndex {
+    MBIDX,
     BLOCKIDX_Y0,
-    BLOCKIDX_Y1,
-    BLOCKIDX_Y2,
-    BLOCKIDX_Y3,
-    BLOCKIDX_CB,
-    BLOCKIDX_CR,
     BLOCKIDX_T2,
     BLOCKIDX_T3,
     BLOCKIDX_CB_T,
@@ -102,18 +99,6 @@ enum BlockIdx {
     BLOCKIDX_L3,
     BLOCKIDX_CB_L,
     BLOCKIDX_CR_L,
-    BLOCKIDX_OVERLAP_LT0,
-    BLOCKIDX_OVERLAP_LT1,
-    BLOCKIDX_OVERLAP_LT2,
-    BLOCKIDX_OVERLAP_LT3,
-    BLOCKIDX_OVERLAP_CB_LT,
-    BLOCKIDX_OVERLAP_CR_LT,
-    BLOCKIDX_OVERLAP_L0,
-    BLOCKIDX_OVERLAP_L1,
-    BLOCKIDX_OVERLAP_L2,
-    BLOCKIDX_OVERLAP_L3,
-    BLOCKIDX_OVERLAP_CB_L,
-    BLOCKIDX_OVERLAP_CR_L,
     BLOCKIDX_MAX
 };
 
@@ -323,11 +308,6 @@ typedef struct VC1ACCodingSet {
     int8_t max_depth;
 } VC1ACCodingSet;
 
-typedef struct VC1LoopfilterCtx {
-    uint8_t *dest;
-    uint8_t loopfilter;
-} VC1LoopfilterCtx;
-
 #define VC1SeqCtx_PROFILE \
     uint8_t profile; \
     ;
@@ -496,7 +476,6 @@ typedef struct VC1AdvPictCtx {
 } VC1AdvPictCtx;
 
 typedef struct VC1StoredBlkCtx {
-    uint8_t *dest;
     uint8_t btype;
     int8_t is_coded;
     int16_t dc_pred;
@@ -507,6 +486,8 @@ typedef struct VC1StoredBlkCtx {
 } VC1StoredBlkCtx;
 
 typedef struct VC1StoredMBCtx {
+    uint8_t *dest[COMPONENT_MAX];
+    uint32_t loopfilter;
 } VC1StoredMBCtx;
 
 #define VC1BlkCtx_COMMON \
@@ -565,10 +546,9 @@ typedef struct VC1MBCtx {
     int8_t use_loopfilter;
     int8_t codec_flag_gray;
 
+    VC1StoredMBCtx *s_mbctx;
     VC1StoredBlkCtx *s_blkctx;
-    VC1LoopfilterCtx *loopctx;
     int16_t (*block)[64];
-    uint8_t *dest[COMPONENT_MAX];
     ptrdiff_t linesize[COMPONENT_TYPE_MAX];
     int8_t pquant;
     int8_t mquant;
@@ -589,10 +569,9 @@ typedef struct VC1IMBCtx {
     int8_t use_loopfilter;
     int8_t codec_flag_gray;
 
+    VC1StoredMBCtx *s_mbctx;
     VC1StoredBlkCtx *s_blkctx;
-    VC1LoopfilterCtx *loopctx;
     int16_t (*block)[64];
-    uint8_t *dest[COMPONENT_MAX];
     ptrdiff_t linesize[COMPONENT_TYPE_MAX];
     int8_t pquant;
     int8_t mquant;
@@ -613,10 +592,9 @@ typedef struct VC1PMBCtx {
     int8_t use_loopfilter;
     int8_t codec_flag_gray;
 
+    VC1StoredMBCtx *s_mbctx;
     VC1StoredBlkCtx *s_blkctx;
-    VC1LoopfilterCtx *loopctx;
     int16_t (*block)[64];
-    uint8_t *dest[COMPONENT_MAX];
     ptrdiff_t linesize[COMPONENT_TYPE_MAX];
     int8_t pquant;
     int8_t mquant;
@@ -646,7 +624,7 @@ struct VC1Context{
 
     VC1StoredBlkCtx *s_blkctx_base;
 
-    VC1LoopfilterCtx *loopctx;
+    VC1StoredMBCtx *s_mbctx_base;
 
     // VLC cbpcy_vlc[CBPTAB]
     VLC new_cbpcy_vlc[5];

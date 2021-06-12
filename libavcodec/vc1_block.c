@@ -72,12 +72,12 @@ static inline void update_block_index(VC1MBCtx *mbctx,
                                       int mb_width,
                                       int i)
 {
-    static const int blkidx_init[BLOCKIDX_MAX] = {  0,  2,  1,  3,  4,  5,
+    static const int blkidx_init[BLOCKIDX_MAX] = {  0,  0,
                                                    -1, -1, -1, -1,
                                                    -1, -1, -1,
-                                                   -1, -1, -1, -1,
-                                                   -1, -1, -1, -1, -1, -1,
-                                                   -1, -1, -1, -1, -1, -1 };
+                                                   -1, -1, -1, -1 };
+    int curr_mbidx = i % (2 * mb_width + 3);
+    int left_mbidx = curr_mbidx > 0 ? curr_mbidx - 1 : 2 * mb_width + 2;
     int curr_blkidx = i % (mb_width + 2);
     int mb_x = i % mb_width;
 
@@ -87,65 +87,60 @@ static inline void update_block_index(VC1MBCtx *mbctx,
         return;
     }
 
-    blkidx[BLOCKIDX_OVERLAP_L0] = blkidx[BLOCKIDX_Y0];
-    blkidx[BLOCKIDX_OVERLAP_L1] = blkidx[BLOCKIDX_L1] = blkidx[BLOCKIDX_Y0] + 2;
-    blkidx[BLOCKIDX_OVERLAP_L2] = blkidx[BLOCKIDX_Y0] + 1;
-    blkidx[BLOCKIDX_OVERLAP_L3] = blkidx[BLOCKIDX_L3] = blkidx[BLOCKIDX_Y0] + 3;
-    blkidx[BLOCKIDX_OVERLAP_CB_L] = blkidx[BLOCKIDX_CB_L] = blkidx[BLOCKIDX_Y0] + 4;
-    blkidx[BLOCKIDX_OVERLAP_CR_L] = blkidx[BLOCKIDX_CR_L] = blkidx[BLOCKIDX_Y0] + 5;
+    blkidx[MBIDX] = curr_mbidx;
 
-    blkidx[BLOCKIDX_OVERLAP_LT0] = blkidx[BLOCKIDX_T3] - 3;
-    blkidx[BLOCKIDX_OVERLAP_LT1] = blkidx[BLOCKIDX_T3] - 1;
-    blkidx[BLOCKIDX_OVERLAP_LT2] = blkidx[BLOCKIDX_T3] - 2;
-    blkidx[BLOCKIDX_OVERLAP_LT3] = blkidx[BLOCKIDX_LT3] = blkidx[BLOCKIDX_T3];
-    blkidx[BLOCKIDX_OVERLAP_CB_LT] = blkidx[BLOCKIDX_CB_LT] = blkidx[BLOCKIDX_T3] + 1;
-    blkidx[BLOCKIDX_OVERLAP_CR_LT] = blkidx[BLOCKIDX_CR_LT] = blkidx[BLOCKIDX_T3] + 2;
+    blkidx[BLOCKIDX_L1] = blkidx[BLOCKIDX_Y0] + 2;
+    blkidx[BLOCKIDX_L3] = blkidx[BLOCKIDX_Y0] + 3;
+    blkidx[BLOCKIDX_CB_L] = blkidx[BLOCKIDX_Y0] + 4;
+    blkidx[BLOCKIDX_CR_L] = blkidx[BLOCKIDX_Y0] + 5;
+
+    blkidx[BLOCKIDX_LT3] = blkidx[BLOCKIDX_T3];
+    blkidx[BLOCKIDX_CB_LT] = blkidx[BLOCKIDX_T3] + 1;
+    blkidx[BLOCKIDX_CR_LT] = blkidx[BLOCKIDX_T3] + 2;
 
     blkidx[BLOCKIDX_Y0] = curr_blkidx > 0 ? blkidx[BLOCKIDX_Y0] + 6 : 0;
-    blkidx[BLOCKIDX_Y1] = blkidx[BLOCKIDX_Y0] + 2;
-    blkidx[BLOCKIDX_Y2] = blkidx[BLOCKIDX_Y0] + 1;
-    blkidx[BLOCKIDX_Y3] = blkidx[BLOCKIDX_Y0] + 3;
-    blkidx[BLOCKIDX_CB] = blkidx[BLOCKIDX_Y0] + 4;
-    blkidx[BLOCKIDX_CR] = blkidx[BLOCKIDX_Y0] + 5;
 
     blkidx[BLOCKIDX_T2] = curr_blkidx == mb_width ? 1 : blkidx[BLOCKIDX_T2] + 6;
     blkidx[BLOCKIDX_T3] = blkidx[BLOCKIDX_T2] + 2;
     blkidx[BLOCKIDX_CB_T] = blkidx[BLOCKIDX_T2] + 3;
     blkidx[BLOCKIDX_CR_T] = blkidx[BLOCKIDX_T2] + 4;
 
-    mbctx->dest[COMPONENT_LUMA] += 16;
-    mbctx->dest[COMPONENT_CB] += 8;
-    mbctx->dest[COMPONENT_CR] += 8;
+    mbctx->s_mbctx[curr_mbidx].dest[COMPONENT_LUMA] = mbctx->s_mbctx[left_mbidx].dest[COMPONENT_LUMA] + 16;
+    mbctx->s_mbctx[curr_mbidx].dest[COMPONENT_CB] = mbctx->s_mbctx[left_mbidx].dest[COMPONENT_CB] + 8;
+    mbctx->s_mbctx[curr_mbidx].dest[COMPONENT_CR] = mbctx->s_mbctx[left_mbidx].dest[COMPONENT_CR] + 8;
 
-    if (i < mb_width) { /* Top row */
-        blkidx[BLOCKIDX_T2] = -1;
-        blkidx[BLOCKIDX_T3] = -1;
-        blkidx[BLOCKIDX_CB_T] = -1;
-        blkidx[BLOCKIDX_CR_T] = -1;
-        blkidx[BLOCKIDX_LT3] = -1;
-        blkidx[BLOCKIDX_CB_LT] = -1;
-        blkidx[BLOCKIDX_CR_LT] = -1;
-        blkidx[BLOCKIDX_OVERLAP_LT0] = -1;
-        blkidx[BLOCKIDX_OVERLAP_LT1] = -1;
-        blkidx[BLOCKIDX_OVERLAP_LT2] = -1;
-        blkidx[BLOCKIDX_OVERLAP_LT3] = -1;
-        blkidx[BLOCKIDX_OVERLAP_CB_LT] = -1;
-        blkidx[BLOCKIDX_OVERLAP_CR_LT] = -1;
+    if (i < mb_width + 1) { /* Top row */
+        if (i < mb_width) {
+            memcpy(blkidx + BLOCKIDX_T2, blkidx_init + BLOCKIDX_T2, sizeof(blkidx_init[0]) * 7);
+/*
+            blkidx[BLOCKIDX_T2] = -1;
+            blkidx[BLOCKIDX_T3] = -1;
+            blkidx[BLOCKIDX_CB_T] = -1;
+            blkidx[BLOCKIDX_CR_T] = -1;
+            blkidx[BLOCKIDX_LT3] = -1;
+            blkidx[BLOCKIDX_CB_LT] = -1;
+            blkidx[BLOCKIDX_CR_LT] = -1;
+*/
+        }
+
     }
 
     if (mb_x == 0) { /* Leftmost block */
+        int top_mbidx = curr_mbidx < mb_width ? curr_mbidx + mb_width + 3 : curr_mbidx - mb_width;
+
+        memcpy(blkidx + BLOCKIDX_LT3, blkidx_init + BLOCKIDX_LT3, sizeof(blkidx_init[0]) * 7);
+/*
+        blkidx[BLOCKIDX_LT3] = -1;
+        blkidx[BLOCKIDX_CB_LT] = -1;
+        blkidx[BLOCKIDX_CR_LT] = -1;
         blkidx[BLOCKIDX_L1] = -1;
         blkidx[BLOCKIDX_L3] = -1;
         blkidx[BLOCKIDX_CB_L] = -1;
         blkidx[BLOCKIDX_CR_L] = -1;
-
-        blkidx[BLOCKIDX_LT3] = -1;
-        blkidx[BLOCKIDX_CB_LT] = -1;
-        blkidx[BLOCKIDX_CR_LT] = -1;
-
-        mbctx->dest[COMPONENT_LUMA] += 16 * (mbctx->linesize[COMPONENT_TYPE_LUMA] - mb_width);
-        mbctx->dest[COMPONENT_CB] += 8 * (mbctx->linesize[COMPONENT_TYPE_CHROMA] - mb_width);
-        mbctx->dest[COMPONENT_CR] += 8 * (mbctx->linesize[COMPONENT_TYPE_CHROMA] - mb_width);
+*/
+        mbctx->s_mbctx[curr_mbidx].dest[COMPONENT_LUMA] = mbctx->s_mbctx[top_mbidx].dest[COMPONENT_LUMA] + 16 * mbctx->linesize[COMPONENT_TYPE_LUMA];
+        mbctx->s_mbctx[curr_mbidx].dest[COMPONENT_CB] = mbctx->s_mbctx[top_mbidx].dest[COMPONENT_CB] + 8 * mbctx->linesize[COMPONENT_TYPE_CHROMA];
+        mbctx->s_mbctx[curr_mbidx].dest[COMPONENT_CR] = mbctx->s_mbctx[top_mbidx].dest[COMPONENT_CR] + 8 * mbctx->linesize[COMPONENT_TYPE_CHROMA];
     }
 }
 
@@ -876,6 +871,7 @@ static int vc1_decode_intra_diff(VC1IntraBlkCtx *blkctx,
 
 static int vc1_decode_intra_block_new(VC1MBCtx* mbctx,
                                       VC1IntraBlkCtx *blkctx,
+                                      int curr_mbidx,
                                       int curr_blkidx, int top_blkidx,
                                       int topleft_blkidx, int left_blkidx,
                                       GetBitContext *gb)
@@ -885,7 +881,6 @@ static int vc1_decode_intra_block_new(VC1MBCtx* mbctx,
     int ret;
 
     sblkctx[curr_blkidx].btype = BLOCK_INTRA;
-    sblkctx[curr_blkidx].dest = blkctx->dest;
 
     vc1_predict_intra_coeff(blkctx, curr_blkidx, top_blkidx, topleft_blkidx, left_blkidx);
 
@@ -897,15 +892,15 @@ static int vc1_decode_intra_block_new(VC1MBCtx* mbctx,
         blkctx->vc1dsp->vc1_inv_trans_8x8(block[curr_blkidx]);
 
     if (mbctx->use_overlap_xfrm) {
-        sblkctx[curr_blkidx].overlap = (sblkctx[top_blkidx].btype == BLOCK_INTRA) << 1;
+        sblkctx[curr_blkidx].overlap = 0;
+        sblkctx[top_blkidx].overlap |= (sblkctx[top_blkidx].btype == BLOCK_INTRA) << 1;
         sblkctx[left_blkidx].overlap |= sblkctx[left_blkidx].btype == BLOCK_INTRA;
-
     }
 
     if (mbctx->use_loopfilter) {
-        sblkctx[curr_blkidx].loopfilter = 0;
-        sblkctx[top_blkidx] |= 3;
-        sblkctx[left_blkidx] |= 3;
+//        sblkctx[curr_blkidx].loopfilter = 0;
+//        sblkctx[top_blkidx].loopfilter |= 3;
+//        sblkctx[left_blkidx].loopfilter |= 3 << 2;
     }
 /*
     if (mbctx->use_loopfilter) {
@@ -1786,6 +1781,7 @@ static int vc1_decode_p_mb(VC1Context *v,
 {
     MpegEncContext *s = &v->s;
     VC1PPictCtx *pict = (VC1PPictCtx*)v->pict;
+    uint8_t **dest = mbctx->s_mbctx[blkidx[MBIDX]].dest;
     VC1BlkCtx skipped_blkctx;
     int acpred, cbpcy;
     int i, j;
@@ -1946,44 +1942,44 @@ static int vc1_decode_p_mb(VC1Context *v,
 
                         switch (i) {
                         case 0:
-                            inter_blkctx->dest = mbctx->dest[COMPONENT_LUMA];
+                            inter_blkctx->dest = dest[COMPONENT_LUMA];
                             inter_blkctx->linesize = mbctx->linesize[COMPONENT_TYPE_LUMA];
                             pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_Y0], blkidx[BLOCKIDX_LT3], blkidx[BLOCKIDX_L1],
                                                          &block_tt, gb);
                             break;
 
                         case 1:
-                            inter_blkctx->dest = mbctx->dest[COMPONENT_LUMA] + 8;
+                            inter_blkctx->dest = dest[COMPONENT_LUMA] + 8;
                             inter_blkctx->linesize = mbctx->linesize[COMPONENT_TYPE_LUMA];
-                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_Y1], blkidx[BLOCKIDX_T2], blkidx[BLOCKIDX_Y0],
+                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_Y0] + 2, blkidx[BLOCKIDX_T2], blkidx[BLOCKIDX_Y0],
                                                          &block_tt, gb);
                             break;
 
                         case 2:
-                            inter_blkctx->dest = mbctx->dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA];
+                            inter_blkctx->dest = dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA];
                             inter_blkctx->linesize = mbctx->linesize[COMPONENT_TYPE_LUMA];
-                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_Y2], blkidx[BLOCKIDX_L1], blkidx[BLOCKIDX_L3],
+                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_Y0] + 1, blkidx[BLOCKIDX_L1], blkidx[BLOCKIDX_L3],
                                                          &block_tt, gb);
                             break;
 
                         case 3:
-                            inter_blkctx->dest = mbctx->dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA] + 8;
+                            inter_blkctx->dest = dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA] + 8;
                             inter_blkctx->linesize = mbctx->linesize[COMPONENT_TYPE_LUMA];
-                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_Y3], blkidx[BLOCKIDX_Y0], blkidx[BLOCKIDX_Y2],
+                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_Y0] + 3, blkidx[BLOCKIDX_Y0], blkidx[BLOCKIDX_Y0] + 1,
                                                          &block_tt, gb);
                             break;
 
                         case 4:
-                            inter_blkctx->dest = mbctx->dest[COMPONENT_CB];
+                            inter_blkctx->dest = dest[COMPONENT_CB];
                             inter_blkctx->linesize = mbctx->linesize[COMPONENT_TYPE_CHROMA];
-                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_CB], blkidx[BLOCKIDX_CB_LT], blkidx[BLOCKIDX_CB_L],
+                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_Y0] + 4, blkidx[BLOCKIDX_CB_LT], blkidx[BLOCKIDX_CB_L],
                                                          &block_tt, gb);
                             break;
 
                         case 5:
-                            inter_blkctx->dest = mbctx->dest[COMPONENT_CR];
+                            inter_blkctx->dest = dest[COMPONENT_CR];
                             inter_blkctx->linesize = mbctx->linesize[COMPONENT_TYPE_CHROMA];
-                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_CR], blkidx[BLOCKIDX_CR_LT], blkidx[BLOCKIDX_CR_L],
+                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_Y0] + 5, blkidx[BLOCKIDX_CR_LT], blkidx[BLOCKIDX_CR_L],
                                                          &block_tt, gb);
                             break;
                         }
@@ -2003,27 +1999,27 @@ static int vc1_decode_p_mb(VC1Context *v,
 
                     case 1:
                         skipped_blkctx.linesize = mbctx->linesize[COMPONENT_TYPE_LUMA];
-                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y1], blkidx[BLOCKIDX_T2], blkidx[BLOCKIDX_Y0], 0, 0);
+                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 2, blkidx[BLOCKIDX_T2], blkidx[BLOCKIDX_Y0], 0, 0);
                         break;
 
                     case 2:
                         skipped_blkctx.linesize = mbctx->linesize[COMPONENT_TYPE_LUMA];
-                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[ BLOCKIDX_Y2], blkidx[BLOCKIDX_L1], blkidx[BLOCKIDX_L3], 0, 0);
+                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 1, blkidx[BLOCKIDX_L1], blkidx[BLOCKIDX_L3], 0, 0);
                         break;
 
                     case 3:
                         skipped_blkctx.linesize = mbctx->linesize[COMPONENT_TYPE_LUMA];
-                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y3], blkidx[BLOCKIDX_Y0], blkidx[BLOCKIDX_Y2], 0, 0);
+                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 3, blkidx[BLOCKIDX_Y0], blkidx[BLOCKIDX_Y0] + 1, 0, 0);
                         break;
 
                     case 4:
                         skipped_blkctx.linesize = mbctx->linesize[COMPONENT_TYPE_CHROMA];
-                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_CB], blkidx[BLOCKIDX_CB_LT], blkidx[BLOCKIDX_CB_L], 0, 0);
+                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 4, blkidx[BLOCKIDX_CB_LT], blkidx[BLOCKIDX_CB_L], 0, 0);
                         break;
 
                     case 5:
                         skipped_blkctx.linesize = mbctx->linesize[COMPONENT_TYPE_CHROMA];
-                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_CR], blkidx[BLOCKIDX_CR_LT], blkidx[BLOCKIDX_CR_L], 0, 0);
+                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 5, blkidx[BLOCKIDX_CR_LT], blkidx[BLOCKIDX_CR_L], 0, 0);
                         break;
                     }
                 }
@@ -2031,12 +2027,12 @@ static int vc1_decode_p_mb(VC1Context *v,
         } else { // skipped
             skipped_blkctx.linesize = mbctx->linesize[COMPONENT_TYPE_LUMA];
             vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0], blkidx[BLOCKIDX_LT3], blkidx[BLOCKIDX_L1], 0, 0);
-            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y1], blkidx[BLOCKIDX_T2], blkidx[BLOCKIDX_Y0], 0, 0);
-            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y2], blkidx[BLOCKIDX_L1], blkidx[BLOCKIDX_L3], 0, 0);
-            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y3], blkidx[BLOCKIDX_Y0], blkidx[BLOCKIDX_Y2], 0, 0);
+            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 2, blkidx[BLOCKIDX_T2], blkidx[BLOCKIDX_Y0], 0, 0);
+            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 1, blkidx[BLOCKIDX_L1], blkidx[BLOCKIDX_L3], 0, 0);
+            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 3, blkidx[BLOCKIDX_Y0], blkidx[BLOCKIDX_Y0] + 1, 0, 0);
             skipped_blkctx.linesize = mbctx->linesize[COMPONENT_TYPE_CHROMA];
-            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_CB], blkidx[BLOCKIDX_CB_LT], blkidx[BLOCKIDX_CB_L], 0, 0);
-            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_CR], blkidx[BLOCKIDX_CR_LT], blkidx[BLOCKIDX_CR_L], 0, 0);
+            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 4, blkidx[BLOCKIDX_CB_LT], blkidx[BLOCKIDX_CB_L], 0, 0);
+            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 5, blkidx[BLOCKIDX_CR_LT], blkidx[BLOCKIDX_CR_L], 0, 0);
 
             s->mb_intra = 0;
             for (i = 0; i < 6; i++) {
@@ -2090,12 +2086,12 @@ static int vc1_decode_p_mb(VC1Context *v,
             if (!intra_count && !coded_inter){
                 skipped_blkctx.linesize = mbctx->linesize[COMPONENT_TYPE_LUMA];
                 vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0], blkidx[BLOCKIDX_LT3], blkidx[BLOCKIDX_L1], 0, 0);
-                vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y1], blkidx[BLOCKIDX_T2], blkidx[BLOCKIDX_Y0], 0, 0);
-                vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y2], blkidx[BLOCKIDX_L1], blkidx[BLOCKIDX_L3], 0, 0);
-                vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y3], blkidx[BLOCKIDX_Y0], blkidx[BLOCKIDX_Y2], 0, 0);
+                vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 2, blkidx[BLOCKIDX_T2], blkidx[BLOCKIDX_Y0], 0, 0);
+                vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 1, blkidx[BLOCKIDX_L1], blkidx[BLOCKIDX_L3], 0, 0);
+                vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 3, blkidx[BLOCKIDX_Y0], blkidx[BLOCKIDX_Y0] + 1, 0, 0);
                 skipped_blkctx.linesize = mbctx->linesize[COMPONENT_TYPE_CHROMA];
-                vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_CB], blkidx[BLOCKIDX_CB_LT], blkidx[BLOCKIDX_CB_L], 0, 0);
-                vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_CR], blkidx[BLOCKIDX_CR_LT], blkidx[BLOCKIDX_CR_L], 0, 0);
+                vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 4, blkidx[BLOCKIDX_CB_LT], blkidx[BLOCKIDX_CB_L], 0, 0);
+                vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 5, blkidx[BLOCKIDX_CR_LT], blkidx[BLOCKIDX_CR_L], 0, 0);
 
                 goto end;
             }
@@ -2168,9 +2164,10 @@ static int vc1_decode_p_mb(VC1Context *v,
                         } else {
                             // decode block Y0
                             intra_blkctx->cbpcy = !!is_coded[0];
-                            intra_blkctx->dest = mbctx->dest[COMPONENT_LUMA];
+                            intra_blkctx->dest = dest[COMPONENT_LUMA];
                             ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
                                                              intra_blkctx,
+                                                             blkidx[MBIDX],
                                                              blkidx[BLOCKIDX_Y0],
                                                              blkidx[BLOCKIDX_T2],
                                                              blkidx[BLOCKIDX_LT3],
@@ -2188,10 +2185,11 @@ static int vc1_decode_p_mb(VC1Context *v,
                         } else {
                             // decode block Y1
                             intra_blkctx->cbpcy = !!is_coded[1];
-                            intra_blkctx->dest = mbctx->dest[COMPONENT_LUMA] + 8;
+                            intra_blkctx->dest = dest[COMPONENT_LUMA] + 8;
                             ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
                                                              intra_blkctx,
-                                                             blkidx[BLOCKIDX_Y1],
+                                                             blkidx[MBIDX],
+                                                             blkidx[BLOCKIDX_Y0] + 2,
                                                              blkidx[BLOCKIDX_T3],
                                                              blkidx[BLOCKIDX_T2],
                                                              blkidx[BLOCKIDX_Y0],
@@ -2208,10 +2206,11 @@ static int vc1_decode_p_mb(VC1Context *v,
                         } else {
                             // decode block Y2
                             intra_blkctx->cbpcy = !!is_coded[2];
-                            intra_blkctx->dest = mbctx->dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA];
+                            intra_blkctx->dest = dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA];
                             ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
                                                              intra_blkctx,
-                                                             blkidx[BLOCKIDX_Y2],
+                                                             blkidx[MBIDX],
+                                                             blkidx[BLOCKIDX_Y0] + 1,
                                                              blkidx[BLOCKIDX_Y0],
                                                              blkidx[BLOCKIDX_L1],
                                                              blkidx[BLOCKIDX_L3],
@@ -2228,13 +2227,14 @@ static int vc1_decode_p_mb(VC1Context *v,
                         } else {
                             // decode block Y3
                             intra_blkctx->cbpcy = !!is_coded[3];
-                            intra_blkctx->dest = mbctx->dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA] + 8;
+                            intra_blkctx->dest = dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA] + 8;
                             ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
                                                              intra_blkctx,
-                                                             blkidx[BLOCKIDX_Y3],
-                                                             blkidx[BLOCKIDX_Y1],
+                                                             blkidx[MBIDX],
+                                                             blkidx[BLOCKIDX_Y0] + 3,
+                                                             blkidx[BLOCKIDX_Y0] + 2,
                                                              blkidx[BLOCKIDX_Y0],
-                                                             blkidx[BLOCKIDX_Y2],
+                                                             blkidx[BLOCKIDX_Y0] + 1,
                                                              gb);
                             if (ret < 0)
                                 return ret;
@@ -2257,10 +2257,11 @@ static int vc1_decode_p_mb(VC1Context *v,
                         } else {
                             // decode block Cb
                             intra_blkctx->cbpcy = cbpcy & 1 << 1;
-                            intra_blkctx->dest = mbctx->dest[COMPONENT_CB];
+                            intra_blkctx->dest = dest[COMPONENT_CB];
                             ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
                                                              intra_blkctx,
-                                                             blkidx[BLOCKIDX_CB],
+                                                             blkidx[MBIDX],
+                                                             blkidx[BLOCKIDX_Y0] + 4,
                                                              blkidx[BLOCKIDX_CB_T],
                                                              blkidx[BLOCKIDX_CB_LT],
                                                              blkidx[BLOCKIDX_CB_L],
@@ -2277,10 +2278,11 @@ static int vc1_decode_p_mb(VC1Context *v,
                         } else {
                             // decode block Cr
                             intra_blkctx->cbpcy = cbpcy & 1;
-                            intra_blkctx->dest = mbctx->dest[COMPONENT_CR];
+                            intra_blkctx->dest = dest[COMPONENT_CR];
                             ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
                                                              intra_blkctx,
-                                                             blkidx[BLOCKIDX_CR],
+                                                             blkidx[MBIDX],
+                                                             blkidx[BLOCKIDX_Y0] + 5,
                                                              blkidx[BLOCKIDX_CR_T],
                                                              blkidx[BLOCKIDX_CR_LT],
                                                              blkidx[BLOCKIDX_CR_L],
@@ -2324,44 +2326,44 @@ static int vc1_decode_p_mb(VC1Context *v,
 
                         switch (i) {
                         case 0:
-                            inter_blkctx->dest = mbctx->dest[COMPONENT_LUMA];
+                            inter_blkctx->dest = dest[COMPONENT_LUMA];
                             inter_blkctx->linesize = mbctx->linesize[COMPONENT_TYPE_LUMA];
                             pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_Y0], blkidx[BLOCKIDX_LT3], blkidx[BLOCKIDX_L1],
                                                          &block_tt, gb);
                             break;
 
                         case 1:
-                            inter_blkctx->dest = mbctx->dest[COMPONENT_LUMA] + 8;
+                            inter_blkctx->dest = dest[COMPONENT_LUMA] + 8;
                             inter_blkctx->linesize = mbctx->linesize[COMPONENT_TYPE_LUMA];
-                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_Y1], blkidx[BLOCKIDX_T2], blkidx[BLOCKIDX_Y0],
+                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_Y0] + 2, blkidx[BLOCKIDX_T2], blkidx[BLOCKIDX_Y0],
                                                          &block_tt, gb);
                             break;
 
                         case 2:
-                            inter_blkctx->dest = mbctx->dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA];
+                            inter_blkctx->dest = dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA];
                             inter_blkctx->linesize = mbctx->linesize[COMPONENT_TYPE_LUMA];
-                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_Y2], blkidx[BLOCKIDX_L1], blkidx[BLOCKIDX_L3],
+                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_Y0] + 1, blkidx[BLOCKIDX_L1], blkidx[BLOCKIDX_L3],
                                                          &block_tt, gb);
                             break;
 
                         case 3:
-                            inter_blkctx->dest = mbctx->dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA] + 8;
+                            inter_blkctx->dest = dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA] + 8;
                             inter_blkctx->linesize = mbctx->linesize[COMPONENT_TYPE_LUMA];
-                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_Y3], blkidx[BLOCKIDX_Y0], blkidx[BLOCKIDX_Y2],
+                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_Y0] + 3, blkidx[BLOCKIDX_Y0], blkidx[BLOCKIDX_Y0] + 1,
                                                          &block_tt, gb);
                             break;
 
                         case 4:
-                            inter_blkctx->dest = mbctx->dest[COMPONENT_CB];
+                            inter_blkctx->dest = dest[COMPONENT_CB];
                             inter_blkctx->linesize = mbctx->linesize[COMPONENT_TYPE_CHROMA];
-                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_CB], blkidx[BLOCKIDX_CB_LT], blkidx[BLOCKIDX_CB_L],
+                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_Y0] + 4, blkidx[BLOCKIDX_CB_LT], blkidx[BLOCKIDX_CB_L],
                                                          &block_tt, gb);
                             break;
 
                         case 5:
-                            inter_blkctx->dest = mbctx->dest[COMPONENT_CR];
+                            inter_blkctx->dest = dest[COMPONENT_CR];
                             inter_blkctx->linesize = mbctx->linesize[COMPONENT_TYPE_CHROMA];
-                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_CR], blkidx[BLOCKIDX_CR_LT], blkidx[BLOCKIDX_CR_L],
+                            pat = vc1_decode_p_block_new(v, mbctx, (VC1BlkCtx*)inter_blkctx, i, blkidx[BLOCKIDX_Y0] + 5, blkidx[BLOCKIDX_CR_LT], blkidx[BLOCKIDX_CR_L],
                                                          &block_tt, gb);
                             break;
                         }
@@ -2381,27 +2383,27 @@ static int vc1_decode_p_mb(VC1Context *v,
 
                     case 1:
                         skipped_blkctx.linesize = mbctx->linesize[COMPONENT_TYPE_LUMA];
-                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y1], blkidx[BLOCKIDX_T2], blkidx[BLOCKIDX_Y0], 0, 0);
+                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 2, blkidx[BLOCKIDX_T2], blkidx[BLOCKIDX_Y0], 0, 0);
                         break;
 
                     case 2:
                         skipped_blkctx.linesize = mbctx->linesize[COMPONENT_TYPE_LUMA];
-                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y2], blkidx[BLOCKIDX_L1], blkidx[BLOCKIDX_L3], 0, 0);
+                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 1, blkidx[BLOCKIDX_L1], blkidx[BLOCKIDX_L3], 0, 0);
                         break;
 
                     case 3:
                         skipped_blkctx.linesize = mbctx->linesize[COMPONENT_TYPE_LUMA];
-                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y3], blkidx[BLOCKIDX_Y0], blkidx[BLOCKIDX_Y2], 0, 0);
+                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 3, blkidx[BLOCKIDX_Y0], blkidx[BLOCKIDX_Y0] + 1, 0, 0);
                         break;
 
                     case 4:
                         skipped_blkctx.linesize = mbctx->linesize[COMPONENT_TYPE_CHROMA];
-                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_CB], blkidx[BLOCKIDX_CB_LT], blkidx[BLOCKIDX_CB_L], 0, 0);
+                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 4, blkidx[BLOCKIDX_CB_LT], blkidx[BLOCKIDX_CB_L], 0, 0);
                         break;
 
                     case 5:
                         skipped_blkctx.linesize = mbctx->linesize[COMPONENT_TYPE_CHROMA];
-                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_CR], blkidx[BLOCKIDX_CR_LT], blkidx[BLOCKIDX_CR_L], 0, 0);
+                        vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 5, blkidx[BLOCKIDX_CR_LT], blkidx[BLOCKIDX_CR_L], 0, 0);
                         break;
                     }
                 }
@@ -2409,12 +2411,12 @@ static int vc1_decode_p_mb(VC1Context *v,
         } else { // skipped MB
             skipped_blkctx.linesize = mbctx->linesize[COMPONENT_TYPE_LUMA];
             vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0], blkidx[BLOCKIDX_LT3], blkidx[BLOCKIDX_L1], 0, 0);
-            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y1], blkidx[BLOCKIDX_T2], blkidx[BLOCKIDX_Y0], 0, 0);
-            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y2], blkidx[BLOCKIDX_L1], blkidx[BLOCKIDX_L3], 0, 0);
-            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y3], blkidx[BLOCKIDX_Y0], blkidx[BLOCKIDX_Y2], 0, 0);
+            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 2, blkidx[BLOCKIDX_T2], blkidx[BLOCKIDX_Y0], 0, 0);
+            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 1, blkidx[BLOCKIDX_L1], blkidx[BLOCKIDX_L3], 0, 0);
+            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 3, blkidx[BLOCKIDX_Y0], blkidx[BLOCKIDX_Y0] + 1, 0, 0);
             skipped_blkctx.linesize = mbctx->linesize[COMPONENT_TYPE_CHROMA];
-            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_CB], blkidx[BLOCKIDX_CB_LT], blkidx[BLOCKIDX_CB_L], 0, 0);
-            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_CR], blkidx[BLOCKIDX_CR_LT], blkidx[BLOCKIDX_CR_L], 0, 0);
+            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 4, blkidx[BLOCKIDX_CB_LT], blkidx[BLOCKIDX_CB_L], 0, 0);
+            vc1_decode_p_block_new(0, mbctx, &skipped_blkctx, 0, blkidx[BLOCKIDX_Y0] + 5, blkidx[BLOCKIDX_CR_LT], blkidx[BLOCKIDX_CR_L], 0, 0);
 
             s->mb_intra                               = 0;
             s->current_picture.qscale_table[mb_pos] = 0;
@@ -3458,6 +3460,7 @@ static inline int vc1_decode_i_mb(VC1IMBCtx *mbctx,
                                   int blkidx[BLOCKIDX_MAX],
                                   GetBitContext *gb)
 {
+    uint8_t **dest = mbctx->s_mbctx[blkidx[MBIDX]].dest;
     unsigned int cbpcy;
     int ret;
 
@@ -3484,9 +3487,10 @@ static inline int vc1_decode_i_mb(VC1IMBCtx *mbctx,
 
     /* decode block Y0 */
     blkctx->cbpcy = cbpcy & 1 << 5;
-    blkctx->dest = mbctx->dest[COMPONENT_LUMA];
+    blkctx->dest = dest[COMPONENT_LUMA];
     ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
                                      blkctx,
+                                     blkidx[MBIDX],
                                      blkidx[BLOCKIDX_Y0],
                                      blkidx[BLOCKIDX_T2],
                                      blkidx[BLOCKIDX_LT3],
@@ -3497,10 +3501,11 @@ static inline int vc1_decode_i_mb(VC1IMBCtx *mbctx,
 
     /* decode block Y1 */
     blkctx->cbpcy = cbpcy & 1 << 4;
-    blkctx->dest += 8;
+    blkctx->dest = dest[COMPONENT_LUMA] + 8;
     ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
                                      blkctx,
-                                     blkidx[BLOCKIDX_Y1],
+                                     blkidx[MBIDX],
+                                     blkidx[BLOCKIDX_Y0] + 2,
                                      blkidx[BLOCKIDX_T3],
                                      blkidx[BLOCKIDX_T2],
                                      blkidx[BLOCKIDX_Y0],
@@ -3510,10 +3515,11 @@ static inline int vc1_decode_i_mb(VC1IMBCtx *mbctx,
 
     /* decode block Y2 */
     blkctx->cbpcy = cbpcy & 1 << 3;
-    blkctx->dest = mbctx->dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA];
+    blkctx->dest = dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA];
     ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
                                      blkctx,
-                                     blkidx[BLOCKIDX_Y2],
+                                     blkidx[MBIDX],
+                                     blkidx[BLOCKIDX_Y0] + 1,
                                      blkidx[BLOCKIDX_Y0],
                                      blkidx[BLOCKIDX_L1],
                                      blkidx[BLOCKIDX_L3],
@@ -3523,13 +3529,14 @@ static inline int vc1_decode_i_mb(VC1IMBCtx *mbctx,
 
     /* decode block Y3 */
     blkctx->cbpcy = cbpcy & 1 << 2;
-    blkctx->dest += 8;
+    blkctx->dest = dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA] + 8;
     ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
                                      blkctx,
-                                     blkidx[BLOCKIDX_Y3],
-                                     blkidx[BLOCKIDX_Y1],
+                                     blkidx[MBIDX],
+                                     blkidx[BLOCKIDX_Y0] + 3,
+                                     blkidx[BLOCKIDX_Y0] + 2,
                                      blkidx[BLOCKIDX_Y0],
-                                     blkidx[BLOCKIDX_Y2],
+                                     blkidx[BLOCKIDX_Y0] + 1,
                                      gb);
     if (ret < 0)
         return ret;
@@ -3543,10 +3550,11 @@ static inline int vc1_decode_i_mb(VC1IMBCtx *mbctx,
 
     /* decode block Cb */
     blkctx->cbpcy = cbpcy & 1 << 1;
-    blkctx->dest = mbctx->dest[COMPONENT_CB];
+    blkctx->dest = dest[COMPONENT_CB];
     ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
                                      blkctx,
-                                     blkidx[BLOCKIDX_CB],
+                                     blkidx[MBIDX],
+                                     blkidx[BLOCKIDX_Y0] + 4,
                                      blkidx[BLOCKIDX_CB_T],
                                      blkidx[BLOCKIDX_CB_LT],
                                      blkidx[BLOCKIDX_CB_L],
@@ -3556,10 +3564,11 @@ static inline int vc1_decode_i_mb(VC1IMBCtx *mbctx,
 
     /* decode block Cr */
     blkctx->cbpcy = cbpcy & 1;
-    blkctx->dest = mbctx->dest[COMPONENT_CR];
+    blkctx->dest = dest[COMPONENT_CR];
     ret = vc1_decode_intra_block_new((VC1MBCtx*)mbctx,
                                      blkctx,
-                                     blkidx[BLOCKIDX_CR],
+                                     blkidx[MBIDX],
+                                     blkidx[BLOCKIDX_Y0] + 5,
                                      blkidx[BLOCKIDX_CR_T],
                                      blkidx[BLOCKIDX_CR_LT],
                                      blkidx[BLOCKIDX_CR_L],
@@ -3579,6 +3588,9 @@ static void vc1_decode_i_blocks(VC1Context *v)
     VC1IMBCtx *mbctx = (VC1IMBCtx*)&v->mbctx;
     VC1IntraBlkCtx blkctx;
     int blkidx[BLOCKIDX_MAX];
+    int topleft_mbidx;
+    int curr_blkidx, topleft_blkidx, left_blkidx;
+    uint8_t **dest;
     GetBitContext *gb = &v->s.gb;
     int k, j, i;
     int mb_pos;
@@ -3586,9 +3598,9 @@ static void vc1_decode_i_blocks(VC1Context *v)
     mbctx->mbtype = MB_I;
     mbctx->linesize[COMPONENT_TYPE_LUMA] = s->current_picture.f->linesize[0];
     mbctx->linesize[COMPONENT_TYPE_CHROMA] = s->current_picture.f->linesize[1];
-    mbctx->dest[COMPONENT_LUMA] = s->current_picture.f->data[0];
-    mbctx->dest[COMPONENT_CB] = s->current_picture.f->data[1];
-    mbctx->dest[COMPONENT_CR] = s->current_picture.f->data[2];
+    mbctx->s_mbctx[0].dest[COMPONENT_LUMA] = s->current_picture.f->data[0];
+    mbctx->s_mbctx[0].dest[COMPONENT_CB] = s->current_picture.f->data[1];
+    mbctx->s_mbctx[0].dest[COMPONENT_CR] = s->current_picture.f->data[2];
     mbctx->put_pixels = ((VC1SimpleSeqCtx*)v->seq)->overlap && pict->pquant >= 9 ?
                         s->idsp.put_signed_pixels_clamped :
                         s->idsp.put_pixels_clamped;
@@ -3651,74 +3663,84 @@ static void vc1_decode_i_blocks(VC1Context *v)
                             blkidx,
                             gb);
 
+            topleft_mbidx = blkidx[MBIDX] < v->end_mb_x + 1 ? blkidx[MBIDX] + v->end_mb_x + 2 : blkidx[MBIDX] - v->end_mb_x - 1;
+            curr_blkidx = blkidx[BLOCKIDX_Y0];
+            topleft_blkidx = 6 * ((i + 1) % (v->end_mb_x + 2));
+            left_blkidx = 6 * ((i - 1) % (v->end_mb_x + 2));
+
             if (i > 0 && mbctx->use_overlap_xfrm) {
-                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L0]].overlap & OVERLAP_H)
-                    blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L0]],
-                                                   mbctx->block[blkidx[BLOCKIDX_OVERLAP_L1]],
+                if (mbctx->s_blkctx[left_blkidx].overlap & OVERLAP_H)
+                    blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx],
+                                                   mbctx->block[left_blkidx + 2],
                                                    8, 8, 1);
-                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L0]].overlap & OVERLAP_V)
-                    blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT2]],
-                                                   mbctx->block[blkidx[BLOCKIDX_OVERLAP_L0]]);
-
-                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L1]].overlap & OVERLAP_H)
-                    blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L1]],
-                                                   mbctx->block[blkidx[BLOCKIDX_Y0]],
+                if (mbctx->s_blkctx[left_blkidx + 1].overlap & OVERLAP_H)
+                    blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 1],
+                                                   mbctx->block[left_blkidx + 3],
                                                    8, 8, 1);
-                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L1]].overlap & OVERLAP_V)
-                    blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT3]],
-                                                   mbctx->block[blkidx[BLOCKIDX_OVERLAP_L1]]);
-
-                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L2]].overlap & OVERLAP_H)
-                    blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L2]],
-                                                   mbctx->block[blkidx[BLOCKIDX_OVERLAP_L3]],
+                if (mbctx->s_blkctx[left_blkidx + 2].overlap & OVERLAP_H)
+                    blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 2],
+                                                   mbctx->block[curr_blkidx],
                                                    8, 8, 1);
-                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L2]].overlap & OVERLAP_V)
-                    blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L0]],
-                                                   mbctx->block[blkidx[BLOCKIDX_OVERLAP_L2]]);
-
-                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L3]].overlap & OVERLAP_H)
-                    blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L3]],
-                                                   mbctx->block[blkidx[BLOCKIDX_Y2]],
+                if (mbctx->s_blkctx[left_blkidx + 3].overlap & OVERLAP_H)
+                    blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 3],
+                                                   mbctx->block[curr_blkidx + 1],
                                                    8, 8, 1);
-                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L3]].overlap & OVERLAP_V)
-                    blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L1]],
-                                                   mbctx->block[blkidx[BLOCKIDX_OVERLAP_L3]]);
-
-               if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CB_L]].overlap & OVERLAP_H)
-                    blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CB_L]],
-                                                   mbctx->block[blkidx[BLOCKIDX_CB]],
+                if (mbctx->s_blkctx[left_blkidx + 4].overlap & OVERLAP_H)
+                    blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 4],
+                                                   mbctx->block[curr_blkidx + 4],
                                                    8, 8, 1);
-                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CB_L]].overlap & OVERLAP_V)
-                    blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CB_LT]],
-                                                   mbctx->block[blkidx[BLOCKIDX_OVERLAP_CB_L]]);
-
-                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CR_L]].overlap & OVERLAP_H)
-                    blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CR_L]],
-                                                   mbctx->block[blkidx[BLOCKIDX_CR]],
+                if (mbctx->s_blkctx[left_blkidx + 5].overlap & OVERLAP_H)
+                    blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 5],
+                                                   mbctx->block[curr_blkidx + 5],
                                                    8, 8, 1);
-                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CR_L]].overlap & OVERLAP_V)
-                    blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CR_LT]],
-                                                   mbctx->block[blkidx[BLOCKIDX_OVERLAP_CR_L]]);
             }
 
             if (i > v->end_mb_x) {
-                mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT0]],
-                                  mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT0]].dest,
+                if (mbctx->use_overlap_xfrm) {
+                    if (mbctx->s_blkctx[topleft_blkidx].overlap & OVERLAP_V)
+                        blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx],
+                                                       mbctx->block[topleft_blkidx + 1]);
+
+                    if (mbctx->s_blkctx[topleft_blkidx + 1].overlap & OVERLAP_V)
+                        blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 1],
+                                                       mbctx->block[left_blkidx]);
+
+                    if (mbctx->s_blkctx[topleft_blkidx + 2].overlap & OVERLAP_V)
+                        blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 2],
+                                                       mbctx->block[topleft_blkidx + 3]);
+
+                    if (mbctx->s_blkctx[topleft_blkidx + 3].overlap & OVERLAP_V)
+                        blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 3],
+                                                       mbctx->block[left_blkidx + 2]);
+
+                    if (mbctx->s_blkctx[topleft_blkidx + 4].overlap & OVERLAP_V)
+                        blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 4],
+                                                       mbctx->block[left_blkidx + 4]);
+
+                    if (mbctx->s_blkctx[topleft_blkidx + 5].overlap & OVERLAP_V)
+                        blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 5],
+                                                       mbctx->block[left_blkidx + 5]);
+                }
+
+                dest = mbctx->s_mbctx[topleft_mbidx].dest;
+
+                mbctx->put_pixels(mbctx->block[topleft_blkidx],
+                                  dest[COMPONENT_LUMA],
                                   mbctx->linesize[COMPONENT_TYPE_LUMA]);
-                mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT1]],
-                                  mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT1]].dest,
+                mbctx->put_pixels(mbctx->block[topleft_blkidx + 1],
+                                  dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA],
                                   mbctx->linesize[COMPONENT_TYPE_LUMA]);
-                mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT2]],
-                                  mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT2]].dest,
+                mbctx->put_pixels(mbctx->block[topleft_blkidx + 2],
+                                  dest[COMPONENT_LUMA] + 8,
                                   mbctx->linesize[COMPONENT_TYPE_LUMA]);
-                mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT3]],
-                                  mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT3]].dest,
+                mbctx->put_pixels(mbctx->block[topleft_blkidx + 3],
+                                  dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA] + 8,
                                   mbctx->linesize[COMPONENT_TYPE_LUMA]);
-                mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CB_LT]],
-                                  mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CB_LT]].dest,
+                mbctx->put_pixels(mbctx->block[topleft_blkidx + 4],
+                                  dest[COMPONENT_CB],
                                   mbctx->linesize[COMPONENT_TYPE_CHROMA]);
-                mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CR_LT]],
-                                  mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CR_LT]].dest,
+                mbctx->put_pixels(mbctx->block[topleft_blkidx + 5],
+                                  dest[COMPONENT_CR],
                                   mbctx->linesize[COMPONENT_TYPE_CHROMA]);
             }
 
@@ -3729,73 +3751,83 @@ static void vc1_decode_i_blocks(VC1Context *v)
                     i++;
                     update_block_index((VC1MBCtx*)mbctx, blkidx, v->end_mb_x, i);
 
+                    topleft_mbidx = blkidx[MBIDX] < v->end_mb_x + 1 ? blkidx[MBIDX] + v->end_mb_x + 2 : blkidx[MBIDX] - v->end_mb_x - 1;
+                    curr_blkidx = blkidx[BLOCKIDX_Y0];
+                    topleft_blkidx = 6 * ((i + 1) % (v->end_mb_x + 2));
+                    left_blkidx = 6 * ((i - 1) % (v->end_mb_x + 2));
+
                     if (tail == v->end_mb_x && mbctx->use_overlap_xfrm) {
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L0]].overlap & OVERLAP_H)
-                            blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L0]],
-                                                           mbctx->block[blkidx[BLOCKIDX_OVERLAP_L1]],
+                        if (mbctx->s_blkctx[left_blkidx].overlap & OVERLAP_H)
+                            blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx],
+                                                           mbctx->block[left_blkidx + 2],
                                                            8, 8, 1);
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L0]].overlap & OVERLAP_V)
-                            blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT2]],
-                                                           mbctx->block[blkidx[BLOCKIDX_OVERLAP_L0]]);
-
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L1]].overlap & OVERLAP_H)
-                            blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L1]],
-                                                           mbctx->block[blkidx[BLOCKIDX_Y0]],
+                        if (mbctx->s_blkctx[left_blkidx + 1].overlap & OVERLAP_H)
+                            blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 1],
+                                                           mbctx->block[left_blkidx + 3],
                                                            8, 8, 1);
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L1]].overlap & OVERLAP_V)
-                            blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT3]],
-                                                           mbctx->block[blkidx[BLOCKIDX_OVERLAP_L1]]);
-
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L2]].overlap & OVERLAP_H)
-                            blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L2]],
-                                                           mbctx->block[blkidx[BLOCKIDX_OVERLAP_L3]],
+                        if (mbctx->s_blkctx[left_blkidx + 2].overlap & OVERLAP_H)
+                            blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 2],
+                                                           mbctx->block[curr_blkidx],
                                                            8, 8, 1);
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L2]].overlap & OVERLAP_V)
-                            blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L0]],
-                                                           mbctx->block[blkidx[BLOCKIDX_OVERLAP_L2]]);
-
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L3]].overlap & OVERLAP_H)
-                            blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L3]],
-                                                           mbctx->block[blkidx[BLOCKIDX_Y2]],
+                        if (mbctx->s_blkctx[left_blkidx + 3].overlap & OVERLAP_H)
+                            blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 3],
+                                                           mbctx->block[curr_blkidx + 1],
                                                            8, 8, 1);
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L3]].overlap & OVERLAP_V)
-                            blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L1]],
-                                                           mbctx->block[blkidx[BLOCKIDX_OVERLAP_L3]]);
-
-                       if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CB_L]].overlap & OVERLAP_H)
-                            blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CB_L]],
-                                                           mbctx->block[blkidx[BLOCKIDX_CB]],
+                        if (mbctx->s_blkctx[left_blkidx + 4].overlap & OVERLAP_H)
+                            blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 4],
+                                                           mbctx->block[curr_blkidx + 4],
                                                            8, 8, 1);
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CB_L]].overlap & OVERLAP_V)
-                            blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CB_LT]],
-                                                           mbctx->block[blkidx[BLOCKIDX_OVERLAP_CB_L]]);
-
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CR_L]].overlap & OVERLAP_H)
-                            blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CR_L]],
-                                                           mbctx->block[blkidx[BLOCKIDX_CR]],
+                        if (mbctx->s_blkctx[left_blkidx + 5].overlap & OVERLAP_H)
+                            blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 5],
+                                                           mbctx->block[curr_blkidx + 5],
                                                            8, 8, 1);
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CR_L]].overlap & OVERLAP_V)
-                            blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CR_LT]],
-                                                           mbctx->block[blkidx[BLOCKIDX_OVERLAP_CR_L]]);
                     }
 
-                    mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT0]],
-                                      mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT0]].dest,
+                    if (mbctx->use_overlap_xfrm) {
+                        if (mbctx->s_blkctx[topleft_blkidx].overlap & OVERLAP_V)
+                            blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx],
+                                                           mbctx->block[topleft_blkidx + 1]);
+
+                        if (mbctx->s_blkctx[topleft_blkidx + 1].overlap & OVERLAP_V)
+                            blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 1],
+                                                           mbctx->block[left_blkidx]);
+
+                        if (mbctx->s_blkctx[topleft_blkidx + 2].overlap & OVERLAP_V)
+                            blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 2],
+                                                           mbctx->block[topleft_blkidx + 3]);
+
+                        if (mbctx->s_blkctx[topleft_blkidx + 3].overlap & OVERLAP_V)
+                            blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 3],
+                                                           mbctx->block[left_blkidx + 2]);
+
+                        if (mbctx->s_blkctx[topleft_blkidx + 4].overlap & OVERLAP_V)
+                            blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 4],
+                                                           mbctx->block[left_blkidx + 4]);
+
+                        if (mbctx->s_blkctx[topleft_blkidx + 5].overlap & OVERLAP_V)
+                            blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 5],
+                                                           mbctx->block[left_blkidx + 5]);
+                    }
+
+                    dest = mbctx->s_mbctx[topleft_mbidx].dest;
+
+                    mbctx->put_pixels(mbctx->block[topleft_blkidx],
+                                      dest[COMPONENT_LUMA],
                                       mbctx->linesize[COMPONENT_TYPE_LUMA]);
-                    mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT1]],
-                                      mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT1]].dest,
+                    mbctx->put_pixels(mbctx->block[topleft_blkidx + 1],
+                                      dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA],
                                       mbctx->linesize[COMPONENT_TYPE_LUMA]);
-                    mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT2]],
-                                      mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT2]].dest,
+                    mbctx->put_pixels(mbctx->block[topleft_blkidx + 2],
+                                      dest[COMPONENT_LUMA] + 8,
                                       mbctx->linesize[COMPONENT_TYPE_LUMA]);
-                    mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT3]],
-                                      mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT3]].dest,
+                    mbctx->put_pixels(mbctx->block[topleft_blkidx + 3],
+                                      dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA] + 8,
                                       mbctx->linesize[COMPONENT_TYPE_LUMA]);
-                    mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CB_LT]],
-                                      mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CB_LT]].dest,
+                    mbctx->put_pixels(mbctx->block[topleft_blkidx + 4],
+                                      dest[COMPONENT_CB],
                                       mbctx->linesize[COMPONENT_TYPE_CHROMA]);
-                    mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CR_LT]],
-                                      mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CR_LT]].dest,
+                    mbctx->put_pixels(mbctx->block[topleft_blkidx + 5],
+                                      dest[COMPONENT_CR],
                                       mbctx->linesize[COMPONENT_TYPE_CHROMA]);
                 } while (tail--);
             }
@@ -4188,8 +4220,8 @@ static void vc1_decode_i_blocks(VC1Context *v)
                 }
             }
 */
-            if (v->s.loop_filter)
-                ff_vc1_i_loop_filter(v);
+//            if (v->s.loop_filter)
+//                ff_vc1_i_loop_filter(v);
 
             if (get_bits_left(gb) < 0) {
                 ff_er_add_slice(&s->er, 0, 0, s->mb_x, s->mb_y, ER_MB_ERROR);
@@ -4369,9 +4401,12 @@ static void vc1_decode_p_blocks(VC1Context *v)
     GetBitContext *gb = &s->gb;
     VC1PPictCtx *pict = (VC1PPictCtx*)v->pict;
     VC1PMBCtx *mbctx = (VC1PMBCtx*)&v->mbctx;
+    uint8_t **dest;
     VC1IntraBlkCtx intra_blkctx;
     VC1InterBlkCtx inter_blkctx;
     int blkidx[BLOCKIDX_MAX];
+    int topleft_mbidx;
+    int curr_blkidx, topleft_blkidx, left_blkidx;
     int apply_loop_filter;
     int i;
 
@@ -4403,9 +4438,9 @@ static void vc1_decode_p_blocks(VC1Context *v)
     mbctx->mbtype = MB_P;
     mbctx->linesize[COMPONENT_TYPE_LUMA] = s->current_picture.f->linesize[0];
     mbctx->linesize[COMPONENT_TYPE_CHROMA] = s->current_picture.f->linesize[1];
-    mbctx->dest[COMPONENT_LUMA] = s->current_picture.f->data[0];
-    mbctx->dest[COMPONENT_CB] = s->current_picture.f->data[1];
-    mbctx->dest[COMPONENT_CR] = s->current_picture.f->data[2];
+    mbctx->s_mbctx[0].dest[COMPONENT_LUMA] = s->current_picture.f->data[0];
+    mbctx->s_mbctx[0].dest[COMPONENT_CB] = s->current_picture.f->data[1];
+    mbctx->s_mbctx[0].dest[COMPONENT_CR] = s->current_picture.f->data[2];
     mbctx->put_pixels = s->idsp.put_signed_pixels_clamped;
     mbctx->use_overlap_xfrm = ((VC1SimpleSeqCtx*)v->seq)->overlap && pict->pquant >= 9;
     mbctx->use_loopfilter = v->seq->profile == PROFILE_MAIN ? ((VC1MainSeqCtx*)v->seq)->loopfilter : 0;
@@ -4461,86 +4496,96 @@ static void vc1_decode_p_blocks(VC1Context *v)
             } else {
                 vc1_decode_p_mb(v, mbctx, &intra_blkctx, &inter_blkctx, blkidx, gb);
 
+                topleft_mbidx = blkidx[MBIDX] < s->mb_width + 1 ? blkidx[MBIDX] + s->mb_width + 2 : blkidx[MBIDX] - s->mb_width - 1;
+                curr_blkidx = blkidx[BLOCKIDX_Y0];
+                topleft_blkidx = 6 * ((i + 1) % (v->end_mb_x + 2));
+                left_blkidx = 6 * ((i - 1) % (v->end_mb_x + 2));
+
                 if (v->seq->profile != PROFILE_ADVANCED) {
                     if (i > 0 && mbctx->use_overlap_xfrm) {
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L0]].overlap & OVERLAP_H)
-                            intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L0]],
-                                                                 mbctx->block[blkidx[BLOCKIDX_OVERLAP_L1]],
+                        if (mbctx->s_blkctx[left_blkidx].overlap & OVERLAP_H)
+                            intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx],
+                                                                 mbctx->block[left_blkidx + 2],
                                                                  8, 8, 1);
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L0]].overlap & OVERLAP_V)
-                            intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT2]],
-                                                                 mbctx->block[blkidx[BLOCKIDX_OVERLAP_L0]]);
-
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L1]].overlap & OVERLAP_H)
-                            intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L1]],
-                                                                 mbctx->block[blkidx[BLOCKIDX_Y0]],
+                        if (mbctx->s_blkctx[left_blkidx + 1].overlap & OVERLAP_H)
+                            intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 1],
+                                                                 mbctx->block[left_blkidx + 3],
                                                                  8, 8, 1);
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L1]].overlap & OVERLAP_V)
-                            intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT3]],
-                                                                 mbctx->block[blkidx[BLOCKIDX_OVERLAP_L1]]);
-
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L2]].overlap & OVERLAP_H)
-                            intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L2]],
-                                                                 mbctx->block[blkidx[BLOCKIDX_OVERLAP_L3]],
+                        if (mbctx->s_blkctx[left_blkidx + 2].overlap & OVERLAP_H)
+                            intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 2],
+                                                                 mbctx->block[curr_blkidx],
                                                                  8, 8, 1);
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L2]].overlap & OVERLAP_V)
-                            intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L0]],
-                                                                 mbctx->block[blkidx[BLOCKIDX_OVERLAP_L2]]);
-
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L3]].overlap & OVERLAP_H)
-                            intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L3]],
-                                                                 mbctx->block[blkidx[BLOCKIDX_Y2]],
+                        if (mbctx->s_blkctx[left_blkidx + 3].overlap & OVERLAP_H)
+                            intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 3],
+                                                                 mbctx->block[curr_blkidx + 1],
                                                                  8, 8, 1);
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L3]].overlap & OVERLAP_V)
-                            intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L1]],
-                                                                 mbctx->block[blkidx[BLOCKIDX_OVERLAP_L3]]);
-
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CB_L]].overlap & OVERLAP_H)
-                            intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CB_L]],
-                                                                 mbctx->block[blkidx[BLOCKIDX_CB]],
+                        if (mbctx->s_blkctx[left_blkidx + 4].overlap & OVERLAP_H)
+                            intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 4],
+                                                                 mbctx->block[curr_blkidx + 4],
                                                                  8, 8, 1);
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CB_L]].overlap & OVERLAP_V)
-                            intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CB_LT]],
-                                                                 mbctx->block[blkidx[BLOCKIDX_OVERLAP_CB_L]]);
-
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CR_L]].overlap & OVERLAP_H)
-                            intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CR_L]],
-                                                                 mbctx->block[blkidx[BLOCKIDX_CR]],
+                        if (mbctx->s_blkctx[left_blkidx + 5].overlap & OVERLAP_H)
+                            intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 5],
+                                                                 mbctx->block[curr_blkidx + 5],
                                                                  8, 8, 1);
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CR_L]].overlap & OVERLAP_V)
-                            intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CR_LT]],
-                                                                 mbctx->block[blkidx[BLOCKIDX_OVERLAP_CR_L]]);
                     }
 
                     if (i > s->mb_width) {
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT0]].btype == BLOCK_INTRA)
-                            mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT0]],
-                                              mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT0]].dest,
+                        if (mbctx->use_overlap_xfrm) {
+                            if (mbctx->s_blkctx[topleft_blkidx].overlap & OVERLAP_V)
+                                intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx],
+                                                                     mbctx->block[topleft_blkidx + 1]);
+
+                            if (mbctx->s_blkctx[topleft_blkidx + 1].overlap & OVERLAP_V)
+                                intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 1],
+                                                                     mbctx->block[left_blkidx]);
+
+                            if (mbctx->s_blkctx[topleft_blkidx + 2].overlap & OVERLAP_V)
+                                intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 2],
+                                                                     mbctx->block[topleft_blkidx + 3]);
+
+                            if (mbctx->s_blkctx[topleft_blkidx + 3].overlap & OVERLAP_V)
+                                intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 3],
+                                                                     mbctx->block[left_blkidx + 2]);
+
+                            if (mbctx->s_blkctx[topleft_blkidx + 4].overlap & OVERLAP_V)
+                                intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 4],
+                                                                     mbctx->block[left_blkidx + 4]);
+
+                            if (mbctx->s_blkctx[topleft_blkidx + 5].overlap & OVERLAP_V)
+                                intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 5],
+                                                                     mbctx->block[left_blkidx + 5]);
+                        }
+
+                        dest = mbctx->s_mbctx[topleft_mbidx].dest;
+
+                        if (mbctx->s_blkctx[topleft_blkidx].btype == BLOCK_INTRA)
+                            mbctx->put_pixels(mbctx->block[topleft_blkidx],
+                                              dest[COMPONENT_LUMA],
                                               mbctx->linesize[COMPONENT_TYPE_LUMA]);
 
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT1]].btype == BLOCK_INTRA)
-                            mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT1]],
-                                              mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT1]].dest,
+                        if (mbctx->s_blkctx[topleft_blkidx + 1].btype == BLOCK_INTRA)
+                            mbctx->put_pixels(mbctx->block[topleft_blkidx + 1],
+                                              dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA],
                                               mbctx->linesize[COMPONENT_TYPE_LUMA]);
 
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT2]].btype == BLOCK_INTRA)
-                            mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT2]],
-                                              mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT2]].dest,
+                        if (mbctx->s_blkctx[topleft_blkidx + 2].btype == BLOCK_INTRA)
+                            mbctx->put_pixels(mbctx->block[topleft_blkidx + 2],
+                                              dest[COMPONENT_LUMA] + 8,
                                               mbctx->linesize[COMPONENT_TYPE_LUMA]);
 
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT3]].btype == BLOCK_INTRA)
-                            mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT3]],
-                                              mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT3]].dest,
+                        if (mbctx->s_blkctx[topleft_blkidx + 3].btype == BLOCK_INTRA)
+                            mbctx->put_pixels(mbctx->block[topleft_blkidx + 3],
+                                              dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA] + 8,
                                               mbctx->linesize[COMPONENT_TYPE_LUMA]);
 
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CB_LT]].btype == BLOCK_INTRA)
-                            mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CB_LT]],
-                                              mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CB_LT]].dest,
+                        if (mbctx->s_blkctx[topleft_blkidx + 4].btype == BLOCK_INTRA)
+                            mbctx->put_pixels(mbctx->block[topleft_blkidx + 4],
+                                              dest[COMPONENT_CB],
                                               mbctx->linesize[COMPONENT_TYPE_CHROMA]);
 
-                        if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CR_LT]].btype == BLOCK_INTRA)
-                            mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CR_LT]],
-                                              mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CR_LT]].dest,
+                        if (mbctx->s_blkctx[topleft_blkidx + 5].btype == BLOCK_INTRA)
+                            mbctx->put_pixels(mbctx->block[topleft_blkidx + 5],
+                                              dest[COMPONENT_CR],
                                               mbctx->linesize[COMPONENT_TYPE_CHROMA]);
                     }
 
@@ -4551,84 +4596,94 @@ static void vc1_decode_p_blocks(VC1Context *v)
                             i++;
                             update_block_index((VC1MBCtx*)mbctx, blkidx, s->mb_width, i);
 
+                            topleft_mbidx = blkidx[MBIDX] < s->mb_width + 1 ? blkidx[MBIDX] + s->mb_width + 2 : blkidx[MBIDX] - s->mb_width - 1;
+                            curr_blkidx = blkidx[BLOCKIDX_Y0];
+                            topleft_blkidx = 6 * ((i + 1) % (v->end_mb_x + 2));
+                            left_blkidx = 6 * ((i - 1) % (v->end_mb_x + 2));
+
                             if (tail == s->mb_width && mbctx->use_overlap_xfrm) {
-                                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L0]].overlap & OVERLAP_H)
-                                    intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L0]],
-                                                                         mbctx->block[blkidx[BLOCKIDX_OVERLAP_L1]],
+                                if (mbctx->s_blkctx[left_blkidx].overlap & OVERLAP_H)
+                                    intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx],
+                                                                         mbctx->block[left_blkidx + 2],
                                                                          8, 8, 1);
-                                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L0]].overlap & OVERLAP_V)
-                                    intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT2]],
-                                                                         mbctx->block[blkidx[BLOCKIDX_OVERLAP_L0]]);
-
-                                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L1]].overlap & OVERLAP_H)
-                                    intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L1]],
-                                                                         mbctx->block[blkidx[BLOCKIDX_Y0]],
+                                if (mbctx->s_blkctx[left_blkidx + 1].overlap & OVERLAP_H)
+                                    intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 1],
+                                                                         mbctx->block[left_blkidx + 3],
                                                                          8, 8, 1);
-                                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L1]].overlap & OVERLAP_V)
-                                    intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT3]],
-                                                                         mbctx->block[blkidx[BLOCKIDX_OVERLAP_L1]]);
-
-                                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L2]].overlap & OVERLAP_H)
-                                    intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L2]],
-                                                                         mbctx->block[blkidx[BLOCKIDX_OVERLAP_L3]],
+                                if (mbctx->s_blkctx[left_blkidx + 2].overlap & OVERLAP_H)
+                                    intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 2],
+                                                                         mbctx->block[curr_blkidx],
                                                                          8, 8, 1);
-                                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L2]].overlap & OVERLAP_V)
-                                    intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L0]],
-                                                                         mbctx->block[blkidx[BLOCKIDX_OVERLAP_L2]]);
-
-                                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L3]].overlap & OVERLAP_H)
-                                    intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L3]],
-                                                                         mbctx->block[blkidx[BLOCKIDX_Y2]],
+                                if (mbctx->s_blkctx[left_blkidx + 3].overlap & OVERLAP_H)
+                                    intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 3],
+                                                                         mbctx->block[curr_blkidx + 1],
                                                                          8, 8, 1);
-                                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_L3]].overlap & OVERLAP_V)
-                                    intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_L1]],
-                                                                         mbctx->block[blkidx[BLOCKIDX_OVERLAP_L3]]);
-
-                                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CB_L]].overlap & OVERLAP_H)
-                                    intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CB_L]],
-                                                                         mbctx->block[blkidx[BLOCKIDX_CB]],
+                                if (mbctx->s_blkctx[left_blkidx + 4].overlap & OVERLAP_H)
+                                    intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 4],
+                                                                         mbctx->block[curr_blkidx + 4],
                                                                          8, 8, 1);
-                                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CB_L]].overlap & OVERLAP_V)
-                                    intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CB_LT]],
-                                                                         mbctx->block[blkidx[BLOCKIDX_OVERLAP_CB_L]]);
-
-                                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CR_L]].overlap & OVERLAP_H)
-                                    intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CR_L]],
-                                                                         mbctx->block[blkidx[BLOCKIDX_CR]],
+                                if (mbctx->s_blkctx[left_blkidx + 5].overlap & OVERLAP_H)
+                                    intra_blkctx.vc1dsp->vc1_h_s_overlap(mbctx->block[left_blkidx + 5],
+                                                                         mbctx->block[curr_blkidx + 5],
                                                                          8, 8, 1);
-                                if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CR_L]].overlap & OVERLAP_V)
-                                    intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CR_LT]],
-                                                                         mbctx->block[blkidx[BLOCKIDX_OVERLAP_CR_L]]);
                             }
 
-                            if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT0]].btype == BLOCK_INTRA)
-                                mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT0]],
-                                                  mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT0]].dest,
+                            if (mbctx->use_overlap_xfrm) {
+                                if (mbctx->s_blkctx[topleft_blkidx].overlap & OVERLAP_V)
+                                    intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx],
+                                                                         mbctx->block[topleft_blkidx + 1]);
+
+                                if (mbctx->s_blkctx[topleft_blkidx + 1].overlap & OVERLAP_V)
+                                    intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 1],
+                                                                         mbctx->block[left_blkidx]);
+
+                                if (mbctx->s_blkctx[topleft_blkidx + 2].overlap & OVERLAP_V)
+                                    intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 2],
+                                                                         mbctx->block[topleft_blkidx + 3]);
+
+                                if (mbctx->s_blkctx[topleft_blkidx + 3].overlap & OVERLAP_V)
+                                    intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 3],
+                                                                         mbctx->block[left_blkidx + 2]);
+
+                                if (mbctx->s_blkctx[topleft_blkidx + 4].overlap & OVERLAP_V)
+                                    intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 4],
+                                                                         mbctx->block[left_blkidx + 4]);
+
+                                if (mbctx->s_blkctx[topleft_blkidx + 5].overlap & OVERLAP_V)
+                                    intra_blkctx.vc1dsp->vc1_v_s_overlap(mbctx->block[topleft_blkidx + 5],
+                                                                         mbctx->block[left_blkidx + 5]);
+                            }
+
+                            dest = mbctx->s_mbctx[topleft_mbidx].dest;
+
+                            if (mbctx->s_blkctx[topleft_blkidx].btype == BLOCK_INTRA)
+                                mbctx->put_pixels(mbctx->block[topleft_blkidx],
+                                                  dest[COMPONENT_LUMA],
                                                   mbctx->linesize[COMPONENT_TYPE_LUMA]);
 
-                            if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT1]].btype == BLOCK_INTRA)
-                                mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT1]],
-                                                  mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT1]].dest,
+                            if (mbctx->s_blkctx[topleft_blkidx + 1].btype == BLOCK_INTRA)
+                                mbctx->put_pixels(mbctx->block[topleft_blkidx + 1],
+                                                  dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA],
                                                   mbctx->linesize[COMPONENT_TYPE_LUMA]);
 
-                            if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT2]].btype == BLOCK_INTRA)
-                                mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT2]],
-                                                  mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT2]].dest,
+                            if (mbctx->s_blkctx[topleft_blkidx + 2].btype == BLOCK_INTRA)
+                                mbctx->put_pixels(mbctx->block[topleft_blkidx + 2],
+                                                  dest[COMPONENT_LUMA] + 8,
                                                   mbctx->linesize[COMPONENT_TYPE_LUMA]);
 
-                            if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT3]].btype == BLOCK_INTRA)
-                                mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_LT3]],
-                                                  mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_LT3]].dest,
+                            if (mbctx->s_blkctx[topleft_blkidx + 3].btype == BLOCK_INTRA)
+                                mbctx->put_pixels(mbctx->block[topleft_blkidx + 3],
+                                                  dest[COMPONENT_LUMA] + 8 * mbctx->linesize[COMPONENT_TYPE_LUMA] + 8,
                                                   mbctx->linesize[COMPONENT_TYPE_LUMA]);
 
-                            if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CB_LT]].btype == BLOCK_INTRA)
-                                mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CB_LT]],
-                                                  mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CB_LT]].dest,
+                            if (mbctx->s_blkctx[topleft_blkidx + 4].btype == BLOCK_INTRA)
+                                mbctx->put_pixels(mbctx->block[topleft_blkidx + 4],
+                                                  dest[COMPONENT_CB],
                                                   mbctx->linesize[COMPONENT_TYPE_CHROMA]);
 
-                            if (mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CR_LT]].btype == BLOCK_INTRA)
-                                mbctx->put_pixels(mbctx->block[blkidx[BLOCKIDX_OVERLAP_CR_LT]],
-                                                  mbctx->s_blkctx[blkidx[BLOCKIDX_OVERLAP_CR_LT]].dest,
+                            if (mbctx->s_blkctx[topleft_blkidx + 5].btype == BLOCK_INTRA)
+                                mbctx->put_pixels(mbctx->block[topleft_blkidx + 5],
+                                                  dest[COMPONENT_CR],
                                                   mbctx->linesize[COMPONENT_TYPE_CHROMA]);
                         } while (tail--);
                     }
