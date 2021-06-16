@@ -60,13 +60,26 @@ enum OverlapFilter {
 };
 
 enum Loopfilter {
-    LOOPFILTER_TOP = 0,
-    LOOPFILTER_LEFT = 1,
-    LOOPFILTER_BOTTOM = 2,
-    LOOPFILTER_RIGHT = 3,
-    LOOPFILTER_V = 0,
-    LOOPFILTER_H = 4,
-    LOOPFILTER_INTERNAL_MASK = 15 << 4
+    LOOPFILTER_NONE = 0,
+    LOOPFILTER_SB0 = 1285,
+    LOOPFILTER_SB1 = 1602,
+    LOOPFILTER_SB2 = 2328,
+    LOOPFILTER_SB3 = 2720,
+    LOOPFILTER_TOP = 839,
+    LOOPFILTER_BOTTOM = 952,
+    LOOPFILTER_LEFT = 3101,
+    LOOPFILTER_RIGHT = 3298,
+    LOOPFILTER_OUTER = 255,
+    LOOPFILTER_TOPLEFT_SHIFT = 0,
+    LOOPFILTER_BOTTOMRIGHT_SHIFT = 4,
+    LOOPFILTER_INNER_SHIFT = 8,
+    LOOPFILTER_TOP_MASK = 3 << LOOPFILTER_TOPLEFT_SHIFT,
+    LOOPFILTER_LEFT_MASK = 12 << LOOPFILTER_TOPLEFT_SHIFT,
+    LOOPFILTER_TOPLEFT_MASK = LOOPFILTER_LEFT_MASK | LOOPFILTER_TOP_MASK,
+    LOOPFILTER_BOTTOM_MASK = 3 << LOOPFILTER_BOTTOMRIGHT_SHIFT,
+    LOOPFILTER_RIGHT_MASK = 12 << LOOPFILTER_BOTTOMRIGHT_SHIFT,
+    LOOPFILTER_BOTTOMRIGHT_MASK = LOOPFILTER_BOTTOM_MASK | LOOPFILTER_RIGHT_MASK,
+    LOOPFILTER_INNER_MASK = 15 << LOOPFILTER_INNER_SHIFT
 };
 
 enum MBType {
@@ -482,12 +495,14 @@ typedef struct VC1StoredBlkCtx {
     int16_t ac_pred_top[7];
     int16_t ac_pred_left[7];
     uint8_t overlap;
-    uint8_t loopfilter;
+    uint16_t loopfilter;
+    int16_t mv_fwd_x, mv_fwd_y;
 } VC1StoredBlkCtx;
 
 typedef struct VC1StoredMBCtx {
     uint8_t *dest[COMPONENT_MAX];
-    uint32_t loopfilter;
+    uint32_t loopfilter_blk;
+    uint32_t loopfilter_subblk;
 } VC1StoredMBCtx;
 
 #define VC1BlkCtx_COMMON \

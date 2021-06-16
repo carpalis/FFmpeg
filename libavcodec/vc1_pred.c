@@ -463,6 +463,12 @@ void ff_vc1_pred_mv(VC1Context *v, int n, int dmv_x, int dmv_y,
         s->current_picture.motion_val[dir][xy + wrap + 1 + v->blocks_off][1] = s->current_picture.motion_val[dir][xy + v->blocks_off][1];
         v->mv_f[dir][xy +    1 + v->blocks_off] = v->mv_f[dir][xy +            v->blocks_off];
         v->mv_f[dir][xy + wrap + v->blocks_off] = v->mv_f[dir][xy + wrap + 1 + v->blocks_off] = v->mv_f[dir][xy + v->blocks_off];
+        s->mv[dir][1][0] = s->mv[dir][0][0];
+        s->mv[dir][1][1] = s->mv[dir][0][1];
+        s->mv[dir][2][0] = s->mv[dir][0][0];
+        s->mv[dir][2][1] = s->mv[dir][0][1];
+        s->mv[dir][3][0] = s->mv[dir][0][0];
+        s->mv[dir][3][1] = s->mv[dir][0][1];
     }
 }
 

@@ -342,7 +342,7 @@ static av_cold int vc1_init_stored_ctx(VC1Context *v)
             .ac_pred_top = { 0 },
             .ac_pred_left = { 0 },
             .is_coded = 0,
-            .overlap = 0
+            .overlap = 0,
         };
 
     return 0;
