@@ -101,6 +101,7 @@ enum BlockType {
 enum BlockIndex {
     MBIDX,
     BLOCKIDX_Y0,
+    BLOCKIDX_RT2,
     BLOCKIDX_T2,
     BLOCKIDX_T3,
     BLOCKIDX_CB_T,
@@ -167,6 +168,18 @@ enum SubblockPattern {
     SUBBLOCK_MASK = 15
 };
 
+enum MotionVector {
+    MV_CTX_FORWARD = 0,
+    MV_CTX_BACKWARD = 1,
+    MV_CONTEXT_MAX = 2,
+    MV_X = 0,
+    MV_Y = 1,
+    MV_DIR_MAX = 2,
+    MV_PULLBACK_LOWER = 0,
+    MV_PULLBACK_UPPER = 1,
+    MV_PULLBACK_MAX
+};
+
 /* Quantizer Specifier (Table 259)
  * as specified in J.1.19
  */
@@ -176,17 +189,33 @@ enum Quantizer {
     QUANTIZER_NON_UNIFORM, // non-uniform for all frames
     QUANTIZER_UNIFORM      // uniform for all frames
 };
-//@}
 
-/** Where quant can be changed */
-//@{
+/* Macroblock Quantization Profile (Table 43)
+ * as specified in 7.1.1.31.2
+ */
 enum DQProfile {
     DQPROFILE_FOUR_EDGES,
-    DQPROFILE_DOUBLE_EDGES,
+    DQPROFILE_DOUBLE_EDGE,
     DQPROFILE_SINGLE_EDGE,
     DQPROFILE_ALL_MBS
 };
-//@}
+
+/* Boundary Edge Selection (Tables 44 & 45)
+ * as specified in 7.1.1.31.3 and 7.1.1.31.4
+ */
+enum DQEdge {
+    DQEDGE_NONE = 0,
+    DQEDGE_LEFT = 1,
+    DQEDGE_TOP = 1 << 1,
+    DQEDGE_RIGHT = 1 << 2,
+    DQEDGE_BOTTOM = 1 << 3,
+    DQEDGE_ALL_MBS = 1 << 4,
+    DQEDGE_DQBILEVEL = 1 << 5,
+    DQEDGE_LEFTTOP = DQEDGE_TOP | DQEDGE_LEFT,
+    DQEDGE_TOPRIGHT = DQEDGE_TOP | DQEDGE_RIGHT,
+    DQEDGE_RIGHTBOTTOM = DQEDGE_BOTTOM | DQEDGE_RIGHT,
+    DQEDGE_BOTTOMLEFT = DQEDGE_BOTTOM | DQEDGE_LEFT
+};
 
 /** @name Where quant can be changed
  */
@@ -209,6 +238,11 @@ enum DQDoubleEdge {
 };
 //@}
 
+enum MQuantSelector {
+    MQUANT_SELECT_PQUANT,
+    MQUANT_SELECT_ALTPQUANT
+};
+
 /** MV modes for P-frames */
 //@{
 enum MVMode {
@@ -218,10 +252,12 @@ enum MVMode {
     MV_PMODE_MIXED_MV,
     MV_PMODE_INTENSITY_COMP,
     MV_MODE_1MV_HPEL_BILIN = 0,
-    MV_MODE_1MV,
-    MV_MODE_1MV_HPEL,
-    MV_MODE_MIXED_MV,
-    MV_MODE_INTENSITY_COMP
+    MV_MODE_1MV = 1,
+    MV_MODE_1MV_HPEL = 2,
+    MV_MODE_MIXED_MV = 3,
+    MV_MODE_INTENSITY_COMP = 4,
+    MV_MODE_MASK = 7,
+    MV_MODE_BIT = 1 << 3
 };
 //@}
 
@@ -428,8 +464,9 @@ typedef struct VC1PictCtx {
     uint8_t transacfrm2; \
     uint8_t transdctab; \
     \
-    uint8_t pquant; \
-    uint8_t dquant_inframe; \
+    uint8_t dqedge; \
+    int8_t pquant; \
+    int8_t altpquant; \
     const int8_t (*zz_8x8[3])[64]; \
     int8_t ac_level_code_size; \
     int8_t ac_run_code_size; \
@@ -468,9 +505,9 @@ typedef struct VC1PPictCtx {
     uint8_t respic;
     uint8_t mvmode;
     uint8_t mvmode2;
+    uint8_t mvtab;
     int8_t lumscale;
     int8_t lumshift;
-    uint8_t dquantfrm;
     uint8_t tt;
 } VC1PPictCtx;
 
@@ -479,7 +516,7 @@ typedef struct VC1BPictCtx {
     VC1SimplePictCtx_COMMON
 
     uint8_t mvmode;
-    uint8_t dquantfrm;
+    uint8_t mvtab;
     uint8_t tt;
 } VC1BPictCtx;
 
@@ -496,7 +533,7 @@ typedef struct VC1StoredBlkCtx {
     int16_t ac_pred_left[7];
     uint8_t overlap;
     uint16_t loopfilter;
-    int16_t mv_fwd_x, mv_fwd_y;
+    int16_t mv[MV_CONTEXT_MAX][MV_DIR_MAX];
 } VC1StoredBlkCtx;
 
 typedef struct VC1StoredMBCtx {
@@ -514,8 +551,6 @@ typedef struct VC1StoredMBCtx {
     const int8_t *zz; \
     int8_t *ac_level_code_size; \
     int8_t *ac_run_code_size; \
-    uint8_t *dest; \
-    ptrdiff_t linesize; \
     uint8_t btype; \
     int8_t use_ac_pred; \
     int8_t esc_mode3_vlc; \
@@ -536,12 +571,15 @@ typedef struct VC1IntraBlkCtx {
     int8_t mquant;
     int8_t fasttx;
     int8_t use_cbpcy_pred;
-    uint8_t cbpcy;
 } VC1IntraBlkCtx;
 
 typedef struct VC1InterBlkCtx {
     VC1BlkCtx_COMMON;
 
+    uint8_t *dest;
+    ptrdiff_t linesize;
+    int blkoffset_qpel[MV_DIR_MAX];
+    int refoffset_qpel[MV_DIR_MAX];
     VLC *ttblk_vlc;
     VLC *subblkpat_vlc;
     int8_t tt;
@@ -549,14 +587,23 @@ typedef struct VC1InterBlkCtx {
 } VC1InterBlkCtx;
 
 typedef struct VC1MBCtx {
+    VC1DSPContext *vc1dsp;
+    HpelDSPContext *hdsp;
+    void (*emulated_edge_mc)(uint8_t*, const uint8_t*, ptrdiff_t,
+                             ptrdiff_t, int, int, int, int, int,
+                             int);
+    void (*put_pixels)(const int16_t*, uint8_t*, ptrdiff_t);
+    void (*vc1_v_loop_filter[4])(uint8_t*, int, int);
+    void (*vc1_h_loop_filter[4])(uint8_t*, int, int);
     VLC *dc_diff_vlc;
+    VLC *mv_diff_vlc;
     VLC *cbpcy_vlc;
     VLC *ttmb_vlc;
     VLC *ttblk_vlc;
     VLC *subblkpat_vlc;
     VC1ACCodingSet ac_coding_set[COMPONENT_TYPE_MAX];
     uint8_t mbtype;
-    void (*put_pixels)(const int16_t*, uint8_t*, ptrdiff_t);
+    int8_t use_intensity_comp;
     int8_t use_overlap_xfrm;
     int8_t use_loopfilter;
     int8_t codec_flag_gray;
@@ -565,21 +612,46 @@ typedef struct VC1MBCtx {
     VC1StoredBlkCtx *s_blkctx;
     int16_t (*block)[64];
     ptrdiff_t linesize[COMPONENT_TYPE_MAX];
+    int mb_aligned_width_qpel;
+    int mb_aligned_height_qpel;
+    int mboffset_qpel[MV_DIR_MAX];
+    uint8_t dqedge;
     int8_t pquant;
+    int8_t altpquant;
+    int8_t mquant_selector;
     int8_t mquant;
+    uint8_t mvrange;
+    uint8_t mvmode;
+    uint8_t fastuvmc;
     uint8_t cbpcy;
     uint8_t tt;
+    uint8_t rnd;
+    uint8_t *edge_emu_buffer;
+    uint8_t *ref[COMPONENT_MAX];
+    uint8_t (*ic_lut)[256];
+    void (*put_pixels_bicubic_16x16[16])(uint8_t*, const uint8_t*, ptrdiff_t, int);
+    void (*put_pixels_bilin_16x16[11])(uint8_t*, const uint8_t*, ptrdiff_t, int);
+    void (*put_no_rnd_pixels_bilin_16x16[11])(uint8_t*, const uint8_t*, ptrdiff_t, int);
 } VC1MBCtx;
 
 typedef struct VC1IMBCtx {
+    VC1DSPContext *vc1dsp;
+    HpelDSPContext *hdsp;
+    void (*emulated_edge_mc)(uint8_t*, const uint8_t*, ptrdiff_t,
+                             ptrdiff_t, int, int, int, int, int,
+                             int);
+    void (*put_pixels)(const int16_t*, uint8_t*, ptrdiff_t);
+    void (*vc1_v_loop_filter[4])(uint8_t*, int, int);
+    void (*vc1_h_loop_filter[4])(uint8_t*, int, int);
     VLC *dc_diff_vlc;
+    VLC *mv_diff_vlc;
     VLC *cbpcy_vlc;
     VLC *ttmb_vlc; // REMOVE: not used in I pictures
     VLC *ttblk_vlc; // REMOVE: not used in I pictures
     VLC *subblkpat_vlc; // REMOVE: not used in I pictures
     VC1ACCodingSet ac_coding_set[COMPONENT_TYPE_MAX];
     uint8_t mbtype;
-    void (*put_pixels)(const int16_t*, uint8_t*, ptrdiff_t);
+    int8_t use_intensity_comp;
     int8_t use_overlap_xfrm;
     int8_t use_loopfilter;
     int8_t codec_flag_gray;
@@ -588,21 +660,46 @@ typedef struct VC1IMBCtx {
     VC1StoredBlkCtx *s_blkctx;
     int16_t (*block)[64];
     ptrdiff_t linesize[COMPONENT_TYPE_MAX];
+    int mb_aligned_width_qpel;
+    int mb_aligned_height_qpel;
+    int mboffset_qpel[MV_DIR_MAX];
+    uint8_t dqedge;
     int8_t pquant;
+    int8_t altpquant;
+    int8_t mquant_selector;
     int8_t mquant;
+    uint8_t mvrange;
+    uint8_t mvmode;
+    uint8_t fastuvmc;
     uint8_t cbpcy;
     uint8_t tt; // REMOVE: not used in I pictures
+    uint8_t rnd;
+    uint8_t *edge_emu_buffer;
+    uint8_t *ref[COMPONENT_MAX];
+    uint8_t (*ic_lut)[256];
+    void (*put_pixels_bicubic_16x16[16])(uint8_t*, const uint8_t*, ptrdiff_t, int);
+    void (*put_pixels_bilin_16x16[11])(uint8_t*, const uint8_t*, ptrdiff_t, int);
+    void (*put_no_rnd_pixels_bilin_16x16[11])(uint8_t*, const uint8_t*, ptrdiff_t, int);
 } VC1IMBCtx;
 
 typedef struct VC1PMBCtx {
+    VC1DSPContext *vc1dsp;
+    HpelDSPContext *hdsp;
+    void (*emulated_edge_mc)(uint8_t*, const uint8_t*, ptrdiff_t,
+                             ptrdiff_t, int, int, int, int, int,
+                             int);
+    void (*put_pixels)(const int16_t*, uint8_t*, ptrdiff_t);
+    void (*vc1_v_loop_filter[4])(uint8_t*, int, int);
+    void (*vc1_h_loop_filter[4])(uint8_t*, int, int);
     VLC *dc_diff_vlc;
+    VLC *mv_diff_vlc;
     VLC *cbpcy_vlc;
     VLC *ttmb_vlc;
     VLC *ttblk_vlc;
     VLC *subblkpat_vlc;
     VC1ACCodingSet ac_coding_set[COMPONENT_TYPE_MAX];
     uint8_t mbtype;
-    void (*put_pixels)(const int16_t*, uint8_t*, ptrdiff_t);
+    int8_t use_intensity_comp;
     int8_t use_overlap_xfrm;
     int8_t use_loopfilter;
     int8_t codec_flag_gray;
@@ -611,11 +708,46 @@ typedef struct VC1PMBCtx {
     VC1StoredBlkCtx *s_blkctx;
     int16_t (*block)[64];
     ptrdiff_t linesize[COMPONENT_TYPE_MAX];
+    int mb_aligned_width_qpel;
+    int mb_aligned_height_qpel;
+    int mboffset_qpel[MV_DIR_MAX];
+    uint8_t dqedge;
     int8_t pquant;
+    int8_t altpquant;
+    int8_t mquant_selector;
     int8_t mquant;
+    uint8_t mvrange;
+    uint8_t mvmode;
+    uint8_t fastuvmc;
     uint8_t cbpcy;
     uint8_t tt;
+    uint8_t rnd;
+    uint8_t *edge_emu_buffer;
+    uint8_t *ref[COMPONENT_MAX];
+    uint8_t *ic_lut[COMPONENT_TYPE_MAX];
+    void (*put_pixels_bicubic_16x16[16])(uint8_t*, const uint8_t*, ptrdiff_t, int);
+    void (*put_pixels_bilin_16x16[11])(uint8_t*, const uint8_t*, ptrdiff_t, int);
+    void (*put_no_rnd_pixels_bilin_16x16[11])(uint8_t*, const uint8_t*, ptrdiff_t, int);
 } VC1PMBCtx;
+
+typedef struct VC1MCCtx {
+    void (**put_pixels_mc_luma)(uint8_t*, const uint8_t*, ptrdiff_t, int);
+    void (*put_pixels_mc_chroma)(uint8_t*, uint8_t*, ptrdiff_t, int, int, int);
+    void (*emulated_edge_mc)(uint8_t*, const uint8_t*, ptrdiff_t,
+                             ptrdiff_t, int, int, int, int, int,
+                             int);
+    uint8_t *dest;
+    uint8_t *ref;
+    uint8_t *edge_emu_buffer;
+    uint8_t *ic_lut[COMPONENT_TYPE_MAX];
+    ptrdiff_t stride;
+    int16_t replication_edge[MV_DIR_MAX];
+    uint8_t ctype;
+    int8_t block_w;
+    int8_t block_h;
+    uint8_t rnd;
+    uint8_t use_intensity_comp;
+} VC1MCCtx;
 
 /** The VC1 Context
  * @todo Change size wherever another size is more efficient
@@ -653,6 +785,9 @@ struct VC1Context{
 
     // VLC ac_coding_vlc[CodingSet][PictureComponent];
     VLC ac_coding_vlc[CS_MAX][COMPONENT_TYPE_MAX];
+
+    // VLC mv_diff_vlc[MVTAB]
+    VLC mv_diff_vlc[4];
 
     /** Simple/Main Profile sequence header */
     //@{
@@ -901,15 +1036,22 @@ void ff_vc1_decode_blocks(VC1Context *v);
 
 void ff_vc1_i_overlap_filter(VC1Context *v);
 void ff_vc1_p_overlap_filter(VC1Context *v);
+void ff_vc1_h_overlap_filter(VC1MBCtx *mbctx, int curr_blkidx, int left_blkidx);
+void ff_vc1_v_overlap_filter(VC1MBCtx *mbctx, int curr_blkidx, int left_blkidx);
 void ff_vc1_i_loop_filter(VC1Context *v);
 void ff_vc1_p_loop_filter(VC1Context *v);
+void ff_vc1_v_loop_filter(VC1MBCtx *mbctx, uint32_t loopfilter_blk, uint8_t **dest);
+void ff_vc1_h_loop_filter(VC1MBCtx *mbctx, uint32_t loopfilter_blk, uint8_t **dest);
+void ff_vc1_loop_filter_noop(uint8_t *dest, int linesize, int pquant);
 void ff_vc1_p_intfr_loop_filter(VC1Context *v);
 void ff_vc1_b_intfi_loop_filter(VC1Context *v);
 
 void ff_vc1_mc_1mv(VC1Context *v, int dir);
+//void ff_vc1_mc_1mv_new(VC1Context *v, int dir, VC1PMBCtx *mbctx, VC1InterBlkCtx *blkctx, int blkidx);
 void ff_vc1_mc_4mv_luma(VC1Context *v, int n, int dir, int avg);
 void ff_vc1_mc_4mv_chroma(VC1Context *v, int dir);
 void ff_vc1_mc_4mv_chroma4(VC1Context *v, int dir, int dir2, int avg);
+void ff_vc1_motion_compensation(VC1MCCtx *mcctx, VC1InterBlkCtx *blkctx);
 
 void ff_vc1_interp_mc(VC1Context *v);
 

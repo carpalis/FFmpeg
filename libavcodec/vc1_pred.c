@@ -209,6 +209,178 @@ static av_always_inline int scaleforopp(VC1Context *v, int n /* MV */,
 
 /** Predict and set motion vector
  */
+
+void ff_vc1_predict_mv(VC1PMBCtx *mbctx,
+                       VC1InterBlkCtx *blkctx,
+                       int curr_blkidx,
+                       int pred_a_blkidx,
+                       int pred_b_blkidx,
+                       int pred_c_blkidx,
+                       GetBitContext *gb)
+{
+    static const int16_t range_x[4] = { 256, 512, 2048, 4096 };
+    static const int16_t range_y[4] = { 128, 256, 512, 1024 };
+
+    VC1StoredBlkCtx *sblkctx = mbctx->s_blkctx;
+    VC1StoredBlkCtx *curr_sblkctx = sblkctx + curr_blkidx;
+    int16_t *pred_a = sblkctx[pred_a_blkidx].mv[MV_CTX_FORWARD];
+    int16_t *pred_b = sblkctx[pred_b_blkidx].mv[MV_CTX_FORWARD];
+    int16_t *pred_c = sblkctx[pred_c_blkidx].mv[MV_CTX_FORWARD];
+    unsigned int pred_a_btype = sblkctx[pred_a_blkidx].btype;
+    unsigned int pred_b_btype = sblkctx[pred_b_blkidx].btype;
+    unsigned int pred_c_btype = sblkctx[pred_c_blkidx].btype;
+    int pred[MV_DIR_MAX] = { 0, 0 };
+    int r_x = range_x[mbctx->mvrange];
+    int r_y = range_y[mbctx->mvrange];
+    int luma_mv[MV_DIR_MAX];
+    int sum;
+
+    if (curr_sblkctx->btype == BLOCK_INTER) {
+        if ((pred_a_btype & BLOCK_OOB) != BLOCK_OOB) {
+            if ((pred_c_btype & BLOCK_OOB) == BLOCK_OOB &&
+                (pred_b_btype & BLOCK_OOB) == BLOCK_OOB) {
+                pred[MV_X] = pred_a[MV_X];
+                pred[MV_Y] = pred_a[MV_Y];
+            } else {
+                pred[MV_X] = mid_pred(pred_a[MV_X], pred_b[MV_X], pred_c[MV_X]);
+                pred[MV_Y] = mid_pred(pred_a[MV_Y], pred_b[MV_Y], pred_c[MV_Y]);
+            }
+        } else if ((pred_c_btype & BLOCK_OOB) != BLOCK_OOB) {
+            pred[MV_X] = pred_c[MV_X];
+            pred[MV_Y] = pred_c[MV_Y];
+        }
+
+        pred[MV_X] = av_clip(pred[MV_X] + blkctx->blkoffset_qpel[MV_X],
+                             mbctx->mvmode & MV_MODE_BIT ? -28 : -60,
+                             mbctx->mb_aligned_width_qpel - 4) - blkctx->blkoffset_qpel[MV_X];
+        pred[MV_Y] = av_clip(pred[MV_Y] + blkctx->blkoffset_qpel[MV_Y],
+                             mbctx->mvmode & MV_MODE_BIT ? -28 : -60,
+                             mbctx->mb_aligned_height_qpel - 4) - blkctx->blkoffset_qpel[MV_Y];
+
+        if ((pred_a_btype & BLOCK_OOB) != BLOCK_OOB &&
+            (pred_c_btype & BLOCK_OOB) != BLOCK_OOB) {
+            sum = FFABS(pred[MV_X] - pred_a[MV_X]) + FFABS(pred[MV_Y] - pred_a[MV_Y]);
+            if (sum <= 32)
+                sum = FFABS(pred[MV_X] - pred_c[MV_X]) + FFABS(pred[MV_Y] - pred_c[MV_Y]);
+
+            if (sum > 32) {
+                if (get_bits1(gb)) { // HYBRIDPRED
+                    pred[MV_X] = pred_a[MV_X];
+                    pred[MV_Y] = pred_a[MV_Y];
+                } else {
+                    pred[MV_X] = pred_c[MV_X];
+                    pred[MV_Y] = pred_c[MV_Y];
+                }
+            }
+        }
+
+        if ((mbctx->mvmode & 1) == 0) { /* halfpel MVMODE */
+            curr_sblkctx->mv[MV_CTX_FORWARD][MV_X] *= 2;
+            curr_sblkctx->mv[MV_CTX_FORWARD][MV_Y] *= 2;
+        }
+
+        luma_mv[MV_X] = ((curr_sblkctx->mv[MV_CTX_FORWARD][MV_X] + pred[MV_X] + r_x) & (2 * r_x - 1)) - r_x;
+        luma_mv[MV_Y] = ((curr_sblkctx->mv[MV_CTX_FORWARD][MV_Y] + pred[MV_Y] + r_y) & (2 * r_y - 1)) - r_y;
+
+        curr_sblkctx->mv[MV_CTX_FORWARD][MV_X] = luma_mv[MV_X];
+        curr_sblkctx->mv[MV_CTX_FORWARD][MV_Y] = luma_mv[MV_Y];
+
+        luma_mv[MV_X] = av_clip((luma_mv[MV_X] & ~3) + mbctx->mboffset_qpel[MV_X], -64, mbctx->mb_aligned_width_qpel) - mbctx->mboffset_qpel[MV_X] + (luma_mv[MV_X] & 3);
+        luma_mv[MV_Y] = av_clip((luma_mv[MV_Y] & ~3) + mbctx->mboffset_qpel[MV_Y], -64, mbctx->mb_aligned_height_qpel) - mbctx->mboffset_qpel[MV_Y] + (luma_mv[MV_Y] & 3);
+
+        blkctx->refoffset_qpel[MV_X] = blkctx->blkoffset_qpel[MV_X] + luma_mv[MV_X];
+        blkctx->refoffset_qpel[MV_Y] = blkctx->blkoffset_qpel[MV_Y] + luma_mv[MV_Y];
+    }
+
+    if ((mbctx->mvmode & MV_MODE_BIT) == 0) { /* 1-MV MVMODE */
+        curr_sblkctx[3].mv[MV_CTX_FORWARD][MV_X] =
+        curr_sblkctx[2].mv[MV_CTX_FORWARD][MV_X] =
+        curr_sblkctx[1].mv[MV_CTX_FORWARD][MV_X] =
+        curr_sblkctx->mv[MV_CTX_FORWARD][MV_X];
+
+        curr_sblkctx[3].mv[MV_CTX_FORWARD][MV_Y] =
+        curr_sblkctx[2].mv[MV_CTX_FORWARD][MV_Y] =
+        curr_sblkctx[1].mv[MV_CTX_FORWARD][MV_Y] =
+        curr_sblkctx->mv[MV_CTX_FORWARD][MV_Y];
+    }
+}
+
+void ff_vc1_decode_chroma_mv(VC1PMBCtx *mbctx,
+                             VC1InterBlkCtx *blkctx,
+                             int mb_blkidx)
+{
+    VC1StoredBlkCtx *curr_sblkctx = mbctx->s_blkctx + mb_blkidx;
+    int chroma_mv[MV_DIR_MAX];
+    int s_luma_mv[4][MV_DIR_MAX];
+    int num_inter = 0;
+
+    if (mbctx->mvmode & MV_MODE_BIT) { /* 4-MV MVMODE */
+        for (int i = 0; i < 4; i++)
+            if (curr_sblkctx[i].btype == BLOCK_INTER) {
+                s_luma_mv[num_inter][MV_X] = curr_sblkctx[i].mv[MV_CTX_FORWARD][MV_X];
+                s_luma_mv[num_inter][MV_Y] = curr_sblkctx[i].mv[MV_CTX_FORWARD][MV_Y];
+                num_inter++;
+            }
+
+        switch(num_inter) {
+        case 2:
+            chroma_mv[MV_X] = (s_luma_mv[0][MV_X] + s_luma_mv[1][MV_X]) / 2;
+            chroma_mv[MV_Y] = (s_luma_mv[0][MV_Y] + s_luma_mv[1][MV_Y]) / 2;
+            break;
+
+        case 3:
+            chroma_mv[MV_X] = mid_pred(s_luma_mv[0][MV_X],
+                                       s_luma_mv[1][MV_X],
+                                       s_luma_mv[2][MV_X]);
+            chroma_mv[MV_Y] = mid_pred(s_luma_mv[0][MV_Y],
+                                       s_luma_mv[1][MV_Y],
+                                       s_luma_mv[2][MV_Y]);
+            break;
+
+        case 4:
+            chroma_mv[MV_X] = median4(s_luma_mv[0][MV_X],
+                                      s_luma_mv[1][MV_X],
+                                      s_luma_mv[2][MV_X],
+                                      s_luma_mv[3][MV_X]);
+            chroma_mv[MV_Y] = median4(s_luma_mv[0][MV_Y],
+                                      s_luma_mv[1][MV_Y],
+                                      s_luma_mv[2][MV_Y],
+                                      s_luma_mv[3][MV_Y]);
+            break;
+
+        default:
+            return;
+        }
+    } else { /* 1-MV MVMODE */
+        chroma_mv[MV_X] = curr_sblkctx[0].mv[MV_CTX_FORWARD][MV_X];
+        chroma_mv[MV_Y] = curr_sblkctx[0].mv[MV_CTX_FORWARD][MV_Y];
+    }
+
+    chroma_mv[MV_X] = (chroma_mv[MV_X] + ((chroma_mv[MV_X] & 3) == 3)) >> 1;
+    chroma_mv[MV_Y] = (chroma_mv[MV_Y] + ((chroma_mv[MV_Y] & 3) == 3)) >> 1;
+
+    if (mbctx->fastuvmc) {
+        if (chroma_mv[MV_X] & 1)
+            chroma_mv[MV_X] += chroma_mv[MV_X] < 0 ? 1 : -1;
+        if (chroma_mv[MV_Y] & 1)
+            chroma_mv[MV_Y] += chroma_mv[MV_Y] < 0 ? 1 : -1;
+    }
+
+    curr_sblkctx[4].mv[MV_CTX_FORWARD][MV_X] =
+    curr_sblkctx[5].mv[MV_CTX_FORWARD][MV_X] =
+    chroma_mv[MV_X];
+
+    curr_sblkctx[4].mv[MV_CTX_FORWARD][MV_Y] =
+    curr_sblkctx[5].mv[MV_CTX_FORWARD][MV_Y] =
+    chroma_mv[MV_Y];
+
+    chroma_mv[MV_X] = av_clip((chroma_mv[MV_X] & ~3) + (mbctx->mboffset_qpel[MV_X] >> 1), -32, mbctx->mb_aligned_width_qpel >> 1) - (mbctx->mboffset_qpel[MV_X] >> 1) + (chroma_mv[MV_X] & 3);
+    chroma_mv[MV_Y] = av_clip((chroma_mv[MV_Y] & ~3) + (mbctx->mboffset_qpel[MV_Y] >> 1), -32, mbctx->mb_aligned_height_qpel >> 1) - (mbctx->mboffset_qpel[MV_Y] >> 1) + (chroma_mv[MV_Y] & 3);
+
+    blkctx->refoffset_qpel[MV_X] = blkctx->blkoffset_qpel[MV_X] + chroma_mv[MV_X];
+    blkctx->refoffset_qpel[MV_Y] = blkctx->blkoffset_qpel[MV_Y] + chroma_mv[MV_Y];
+}
+
 void ff_vc1_pred_mv(VC1Context *v, int n, int dmv_x, int dmv_y,
                     int mv1, int r_x, int r_y, uint8_t* is_intra,
                     int pred_flag, int dir)
@@ -417,10 +589,11 @@ void ff_vc1_pred_mv(VC1Context *v, int n, int dmv_x, int dmv_y,
         /* Calculate hybrid prediction as specified in 8.3.5.3.5 (also 10.3.5.4.3.5) */
         hybridmv_thresh = 32;
         if (a_valid && c_valid) {
-            if (is_intra[xy - wrap])
+            if (is_intra[xy - wrap]) {
                 sum = FFABS(px) + FFABS(py);
-            else
+            } else {
                 sum = FFABS(px - field_predA[0]) + FFABS(py - field_predA[1]);
+            }
             if (sum > hybridmv_thresh) {
                 if (get_bits1(&s->gb)) {     // read HYBRIDPRED bit
                     px = field_predA[0];
@@ -430,10 +603,11 @@ void ff_vc1_pred_mv(VC1Context *v, int n, int dmv_x, int dmv_y,
                     py = field_predC[1];
                 }
             } else {
-                if (is_intra[xy - 1])
+                if (is_intra[xy - 1]) {
                     sum = FFABS(px) + FFABS(py);
-                else
+                } else {
                     sum = FFABS(px - field_predC[0]) + FFABS(py - field_predC[1]);
+                }
                 if (sum > hybridmv_thresh) {
                     if (get_bits1(&s->gb)) {
                         px = field_predA[0];

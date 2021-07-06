@@ -343,6 +343,7 @@ static av_cold int vc1_init_stored_ctx(VC1Context *v)
             .ac_pred_left = { 0 },
             .is_coded = 0,
             .overlap = 0,
+            .mv = { { 0, 0 }, { 0, 0 } }
         };
 
     return 0;
@@ -705,6 +706,11 @@ av_cold int ff_vc1_decode_end(AVCodecContext *avctx)
     ff_free_vlc(&v->subblkpat_vlc[0]);
     ff_free_vlc(&v->subblkpat_vlc[1]);
     ff_free_vlc(&v->subblkpat_vlc[2]);
+
+    ff_free_vlc(&v->mv_diff_vlc[0]);
+    ff_free_vlc(&v->mv_diff_vlc[1]);
+    ff_free_vlc(&v->mv_diff_vlc[2]);
+    ff_free_vlc(&v->mv_diff_vlc[3]);
 
     return 0;
 }

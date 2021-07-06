@@ -57,6 +57,15 @@ static av_always_inline void vc1_scale_chroma(uint8_t *srcU, uint8_t *srcV,
     }
 }
 
+static void vc1_intensity_comp(uint8_t *src, uint8_t *lut, int block_w, int block_h, ptrdiff_t linesize)
+{
+    for (int j = 0; j < block_h; j++) {
+        for (int i = 0; i < block_w; i++)
+            src[i] = lut[src[i]];
+        src += linesize;
+    }
+}
+
 static av_always_inline void vc1_lut_scale_luma(uint8_t *srcY,
                                                 uint8_t *lut1, uint8_t *lut2,
                                                 int k, int linesize)
@@ -105,7 +114,7 @@ static av_always_inline void vc1_lut_scale_chroma(uint8_t *srcU, uint8_t *srcV,
 
 static const uint8_t popcount4[16] = { 0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4 };
 
-static av_always_inline int get_luma_mv(VC1Context *v, int dir, int16_t *tx, int16_t *ty)
+static int get_luma_mv(VC1Context *v, int dir, int16_t *tx, int16_t *ty)
 {
     MpegEncContext *s = &v->s;
     int idx = v->mv_f[dir][s->block_index[0] + v->blocks_off] |
@@ -166,6 +175,78 @@ static av_always_inline int get_chroma_mv(VC1Context *v, int dir, int16_t *tx, i
     return valid_count;
 }
 
+void ff_vc1_motion_compensation(VC1MCCtx *mcctx, VC1InterBlkCtx *blkctx)
+{
+    uint8_t *edge_emu_ref = mcctx->edge_emu_buffer;
+    int refoffset_x = blkctx->refoffset_qpel[MV_X] >> 2;
+    int refoffset_y = blkctx->refoffset_qpel[MV_Y] >> 2;
+    int refoffset_qpel_x = blkctx->refoffset_qpel[MV_X];
+    int refoffset_qpel_y = blkctx->refoffset_qpel[MV_Y];
+    int block_w = mcctx->block_w;
+    int block_h = mcctx->block_h;
+    int dxy = ((refoffset_qpel_y & 3) << 2) | (refoffset_qpel_x & 3);
+    uint8_t *ref = mcctx->ref + refoffset_y * mcctx->stride + refoffset_x;
+
+    if (!mcctx->ref)
+        return;
+
+    if (mcctx->use_intensity_comp ||
+        refoffset_qpel_x < 4 ||
+        refoffset_qpel_x > (mcctx->replication_edge[MV_X] - block_w) * 4 ||
+        refoffset_qpel_y < 4 ||
+        refoffset_qpel_y > (mcctx->replication_edge[MV_Y] - block_h) * 4) {
+
+        if (mcctx->rnd < 2) { /* bicubic interpolation */
+            if (refoffset_qpel_x & 3) {
+                edge_emu_ref++;
+                refoffset_x--;
+                ref--;
+                block_w += 2;
+            }
+            if (refoffset_qpel_y & 3) {
+                edge_emu_ref += mcctx->stride;
+                refoffset_y--;
+                ref -= mcctx->stride;
+                block_h += 2;
+            }
+        }
+
+        mcctx->emulated_edge_mc(mcctx->edge_emu_buffer,
+                                ref,
+                                mcctx->stride,
+                                mcctx->stride,
+                                block_w,
+                                block_h,
+                                refoffset_x,
+                                refoffset_y,
+                                mcctx->replication_edge[MV_X],
+                                mcctx->replication_edge[MV_Y]
+                                );
+
+        if (mcctx->use_intensity_comp)
+            vc1_intensity_comp(mcctx->edge_emu_buffer,
+                               mcctx->ic_lut[mcctx->ctype],
+                               block_w,
+                               block_h,
+                               mcctx->stride);
+
+        ref = edge_emu_ref;
+    }
+
+    if (mcctx->ctype == COMPONENT_TYPE_LUMA)
+        mcctx->put_pixels_mc_luma[dxy](mcctx->dest,
+                                       ref,
+                                       mcctx->stride,
+                                       mcctx->rnd);
+    else
+        mcctx->put_pixels_mc_chroma(mcctx->dest,
+                                    ref,
+                                    mcctx->stride,
+                                    mcctx->rnd,
+                                    (dxy & 3) << 1,
+                                    (dxy & 12) >> 1);
+}
+
 /** Do motion compensation over 1 macroblock
  * Mostly adapted hpel_motion and qpel_motion from mpegvideo.c
  */
@@ -204,6 +285,11 @@ void ff_vc1_mc_1mv(VC1Context *v, int dir)
 
     uvmx = (mx + ((mx & 3) == 3)) >> 1;
     uvmy = (my + ((my & 3) == 3)) >> 1;
+    // fastuvmc shall be ignored for interlaced frame picture
+    if (v->fastuvmc && (v->fcm != ILACE_FRAME)) {
+        uvmx = uvmx + ((uvmx < 0) ? (uvmx & 1) : -(uvmx & 1));
+        uvmy = uvmy + ((uvmy < 0) ? (uvmy & 1) : -(uvmy & 1));
+    }
     v->luma_mv[s->mb_x][0] = uvmx;
     v->luma_mv[s->mb_x][1] = uvmy;
 
@@ -214,10 +300,10 @@ void ff_vc1_mc_1mv(VC1Context *v, int dir)
     }
 
     // fastuvmc shall be ignored for interlaced frame picture
-    if (v->fastuvmc && (v->fcm != ILACE_FRAME)) {
-        uvmx = uvmx + ((uvmx < 0) ? (uvmx & 1) : -(uvmx & 1));
-        uvmy = uvmy + ((uvmy < 0) ? (uvmy & 1) : -(uvmy & 1));
-    }
+//    if (v->fastuvmc && (v->fcm != ILACE_FRAME)) {
+//        uvmx = uvmx + ((uvmx < 0) ? (uvmx & 1) : -(uvmx & 1));
+//        uvmy = uvmy + ((uvmy < 0) ? (uvmy & 1) : -(uvmy & 1));
+//    }
     if (!dir) {
         if (v->field_mode && (v->cur_field_type != v->ref_field_type[dir]) && v->second_field) {
             srcY = s->current_picture.f->data[0];
@@ -291,7 +377,7 @@ void ff_vc1_mc_1mv(VC1Context *v, int dir)
 
     if (v->rangeredfrm || use_ic
         || s->h_edge_pos < 22 || v_edge_pos < 22
-        || (unsigned)(src_x - s->mspel) > s->h_edge_pos - (mx&3) - 16 - s->mspel * 3
+        || (unsigned)(src_x - s->mspel) > s->h_edge_pos - (mx&3) - 16 - s->mspel * 2
         || (unsigned)(src_y - 1)        > v_edge_pos    - (my&3) - 16 - 3) {
         uint8_t *ubuf = s->sc.edge_emu_buffer + 19 * s->linesize;
         uint8_t *vbuf = ubuf + 9 * s->uvlinesize;
@@ -677,13 +763,15 @@ void ff_vc1_mc_4mv_chroma(VC1Context *v, int dir)
     uvmx = (tx + ((tx & 3) == 3)) >> 1;
     uvmy = (ty + ((ty & 3) == 3)) >> 1;
 
-    v->luma_mv[s->mb_x][0] = uvmx;
-    v->luma_mv[s->mb_x][1] = uvmy;
+//    v->luma_mv[s->mb_x][0] = uvmx;
+//    v->luma_mv[s->mb_x][1] = uvmy;
 
     if (v->fastuvmc) {
         uvmx = uvmx + ((uvmx < 0) ? (uvmx & 1) : -(uvmx & 1));
         uvmy = uvmy + ((uvmy < 0) ? (uvmy & 1) : -(uvmy & 1));
     }
+    v->luma_mv[s->mb_x][0] = uvmx;
+    v->luma_mv[s->mb_x][1] = uvmy;
     // Field conversion bias
     if (v->cur_field_type != chroma_ref_type)
         uvmy += 2 - 4 * chroma_ref_type;

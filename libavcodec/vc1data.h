@@ -422,6 +422,30 @@ extern const int8_t ff_vc1_inter_4x8_scan_zz_table[32];
  */
 extern const int8_t ff_vc1_inter_4x4_scan_zz_table[16];
 
+/* Motion Vector Differential VLC Table 0 (Table 246)
+ * as specified in 11.10
+ */
+extern const uint16_t ff_vc1_mv_diff_0_codes[73];
+extern const uint8_t ff_vc1_mv_diff_0_bits[73];
+
+/* Motion Vector Differential VLC Table 1 (Table 247)
+ * as specified in 11.10
+ */
+extern const uint16_t ff_vc1_mv_diff_1_codes[73];
+extern const uint8_t ff_vc1_mv_diff_1_bits[73];
+
+/* Motion Vector Differential VLC Table 2 (Table 248)
+ * as specified in 11.10
+ */
+extern const uint16_t ff_vc1_mv_diff_2_codes[73];
+extern const uint8_t ff_vc1_mv_diff_2_bits[73];
+
+/* Motion Vector Differential VLC Table 3 (Table 249)
+ * as specified in 11.10
+ */
+extern const uint8_t ff_vc1_mv_diff_3_codes[73];
+extern const uint8_t ff_vc1_mv_diff_3_bits[73];
+
 /* P Interlaced field picture MV predictor scaling values (Table 114) */
 extern const uint16_t ff_vc1_field_mvpred_scales[2][7][4];
 /* B Interlaced field picture backward MV predictor scaling values for first field (Table 115) */

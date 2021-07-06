@@ -26,6 +26,16 @@
 #include "vc1.h"
 #include "vc1data.h"
 
+void ff_vc1_predict_mv(VC1PMBCtx *mbctx,
+                       VC1InterBlkCtx *blkctx,
+                       int curr_blkidx,
+                       int pred_a_blkidx,
+                       int pred_b_blkidx,
+                       int pred_c_blkidx,
+                       GetBitContext *gb$);
+
+void ff_vc1_decode_chroma_mv(VC1PMBCtx *mbctx, VC1InterBlkCtx *blkctx, int mb_blkidx);
+
 void ff_vc1_pred_mv(VC1Context *v, int n, int dmv_x, int dmv_y,
                     int mv1, int r_x, int r_y, uint8_t* is_intra,
                     int pred_flag, int dir);

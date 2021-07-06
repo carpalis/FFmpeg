@@ -199,6 +199,74 @@ void ff_vc1_p_overlap_filter(VC1Context *v)
         }
 }
 
+void ff_vc1_h_overlap_filter(VC1MBCtx *mbctx, int curr_mb_blkidx, int left_mb_blkidx) {
+    VC1StoredBlkCtx *curr_sblkctx = mbctx->s_blkctx + curr_mb_blkidx;
+    void (*vc1_h_s_overlap)(int16_t*, int16_t*, int, int, int) = mbctx->vc1dsp->vc1_h_s_overlap;
+    int16_t (*curr_block)[64] = mbctx->block + curr_mb_blkidx;
+    int16_t (*left_block)[64] = mbctx->block + left_mb_blkidx;
+
+    if (!mbctx->use_overlap_xfrm)
+        return;
+
+    /* block Y0 */
+    if (curr_sblkctx[0].overlap & OVERLAP_H)
+        vc1_h_s_overlap(left_block[2], curr_block[0], 8, 8, 1);
+
+    /* block Y2 */
+    if (curr_sblkctx[1].overlap & OVERLAP_H)
+        vc1_h_s_overlap(left_block[3], curr_block[1], 8, 8, 1);
+
+    /* block Y1 */
+    if (curr_sblkctx[2].overlap & OVERLAP_H)
+        vc1_h_s_overlap(curr_block[0], curr_block[2], 8, 8, 1);
+
+    /* block Y3 */
+    if (curr_sblkctx[3].overlap & OVERLAP_H)
+        vc1_h_s_overlap(curr_block[1], curr_block[3], 8, 8, 1);
+
+    /* block Cb */
+    if (curr_sblkctx[4].overlap & OVERLAP_H)
+        vc1_h_s_overlap(left_block[4], curr_block[4], 8, 8, 1);
+
+    /* block Cr */
+    if (curr_sblkctx[5].overlap & OVERLAP_H)
+        vc1_h_s_overlap(left_block[5], curr_block[5], 8, 8, 1);
+}
+
+void ff_vc1_v_overlap_filter(VC1MBCtx *mbctx, int curr_mb_blkidx, int top_mb_blkidx) {
+    VC1StoredBlkCtx *curr_sblkctx = mbctx->s_blkctx + curr_mb_blkidx;
+    void (*vc1_v_s_overlap)(int16_t*, int16_t*) = mbctx->vc1dsp->vc1_v_s_overlap;
+    int16_t (*curr_block)[64] = mbctx->block + curr_mb_blkidx;
+    int16_t (*top_block)[64] = mbctx->block + top_mb_blkidx;
+
+    if (!mbctx->use_overlap_xfrm)
+        return;
+
+    /* block Y0 */
+    if (curr_sblkctx[0].overlap & OVERLAP_V)
+        vc1_v_s_overlap(top_block[1], curr_block[0]);
+
+    /* block Y2 */
+    if (curr_sblkctx[1].overlap & OVERLAP_V)
+        vc1_v_s_overlap(curr_block[0], curr_block[1]);
+
+    /* block Y1 */
+    if (curr_sblkctx[2].overlap & OVERLAP_V)
+        vc1_v_s_overlap(top_block[3], curr_block[2]);
+
+    /* block Y3 */
+    if (curr_sblkctx[3].overlap & OVERLAP_V)
+        vc1_v_s_overlap(curr_block[2], curr_block[3]);
+
+    /* block CB */
+    if (curr_sblkctx[4].overlap & OVERLAP_V)
+        vc1_v_s_overlap(top_block[4], curr_block[4]);
+
+    /* block Cr */
+    if (curr_sblkctx[5].overlap & OVERLAP_V)
+        vc1_v_s_overlap(top_block[5], curr_block[5]);
+}
+
 #define LEFT_EDGE   (1 << 0)
 #define RIGHT_EDGE  (1 << 1)
 #define TOP_EDGE    (1 << 2)
@@ -798,6 +866,129 @@ void ff_vc1_p_loop_filter(VC1Context *v)
                                     i);
         }
     }
+}
+
+void ff_vc1_v_loop_filter(VC1MBCtx *mbctx,
+                          uint32_t loopfilter_blk,
+                          uint8_t **dest) {
+    unsigned int offset[4] = { 0 };
+    int pquant = mbctx->pquant;
+    ptrdiff_t linesize;
+    unsigned int index;
+
+    if (!mbctx->use_loopfilter)
+        return;
+
+    linesize = mbctx->linesize[COMPONENT_TYPE_CHROMA];
+    offset[2] = 4;
+
+    /* block Cr */
+    index = loopfilter_blk & 3;
+    mbctx->vc1_v_loop_filter[index](dest[COMPONENT_CR] + offset[index],
+                                    linesize,
+                                    pquant);
+
+    /* block Cb */
+    loopfilter_blk >>= 4;
+    index = loopfilter_blk & 3;
+    mbctx->vc1_v_loop_filter[index](dest[COMPONENT_CB] + offset[index],
+                                    linesize,
+                                    pquant);
+
+    linesize = mbctx->linesize[COMPONENT_TYPE_LUMA];
+
+    /* block Y3 */
+    loopfilter_blk >>= 4;
+    index = loopfilter_blk & 3;
+    mbctx->vc1_v_loop_filter[index](dest[COMPONENT_LUMA] + offset[index] + 8 * linesize + 8,
+                                    linesize,
+                                    pquant);
+
+    /* block Y2 */
+    loopfilter_blk >>= 4;
+    index = loopfilter_blk & 3;
+    mbctx->vc1_v_loop_filter[index](dest[COMPONENT_LUMA] + offset[index] + 8 * linesize,
+                                    linesize,
+                                    pquant);
+
+    /* block Y1 */
+    loopfilter_blk >>= 4;
+    index = loopfilter_blk & 3;
+    mbctx->vc1_v_loop_filter[index](dest[COMPONENT_LUMA] + offset[index] + 8,
+                                    linesize,
+                                    pquant);
+
+    /* block Y0 */
+    loopfilter_blk >>= 4;
+    index = loopfilter_blk & 3;
+    mbctx->vc1_v_loop_filter[index](dest[COMPONENT_LUMA] + offset[index],
+                                    linesize,
+                                    pquant);
+}
+
+// TODO: check if this function can be folded into ff_vc1_v_loop_filter
+void ff_vc1_h_loop_filter(VC1MBCtx *mbctx,
+                          uint32_t loopfilter_blk,
+                          uint8_t **dest) {
+    unsigned int offset[4] = { 0 };
+    int pquant = mbctx->pquant;
+    ptrdiff_t linesize;
+    int index;
+
+    if (!mbctx->use_loopfilter)
+        return;
+
+    linesize = mbctx->linesize[COMPONENT_TYPE_CHROMA];
+    offset[2] = 4 * linesize;
+
+    /* block Cr */
+    index = loopfilter_blk & 3;
+    mbctx->vc1_h_loop_filter[index](dest[COMPONENT_CR] + offset[index],
+                                    linesize,
+                                    pquant);
+
+    /* block Cb */
+    loopfilter_blk >>= 4;
+    index = loopfilter_blk & 3;
+    mbctx->vc1_h_loop_filter[index](dest[COMPONENT_CB] + offset[index],
+                                    linesize,
+                                    pquant);
+
+    linesize = mbctx->linesize[COMPONENT_TYPE_LUMA];
+    offset[2] = 4 * linesize;
+
+    /* block Y3 */
+    loopfilter_blk >>= 4;
+    index = loopfilter_blk & 3;
+    mbctx->vc1_h_loop_filter[index](dest[COMPONENT_LUMA] + offset[index] + 8 * linesize + 8,
+                                    linesize,
+                                    pquant);
+
+    /* block Y2 */
+    loopfilter_blk >>= 4;
+    index = loopfilter_blk & 3;
+    mbctx->vc1_h_loop_filter[index](dest[COMPONENT_LUMA] + offset[index] + 8 * linesize,
+                                    linesize,
+                                    pquant);
+
+    /* block Y1 */
+    loopfilter_blk >>= 4;
+    index = loopfilter_blk & 3;
+    mbctx->vc1_h_loop_filter[index](dest[COMPONENT_LUMA] + offset[index] + 8,
+                                    linesize,
+                                    pquant);
+
+    /* block Y0 */
+    loopfilter_blk >>= 4;
+    index = loopfilter_blk & 3;
+    mbctx->vc1_h_loop_filter[index](dest[COMPONENT_LUMA] + offset[index],
+                                    linesize,
+                                    pquant);
+}
+
+void ff_vc1_loop_filter_noop(uint8_t *dest, int linesize, int pquant)
+{
+    return;
 }
 
 static av_always_inline void vc1_p_h_intfr_loop_filter(VC1Context *v, uint8_t *dest, int *ttblk,

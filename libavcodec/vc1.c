@@ -229,25 +229,32 @@ static int bitplane_decoding(uint8_t* data, int *raw_flag, VC1Context *v)
  */
 static int vop_dquant_decoding(VC1Context *v)
 {
+    static const uint8_t dqsbedge[4] = { DQEDGE_LEFT, DQEDGE_TOP, DQEDGE_RIGHT, DQEDGE_BOTTOM };
+    static const uint8_t dqdbedge[4] = { DQEDGE_LEFTTOP, DQEDGE_TOPRIGHT, DQEDGE_RIGHTBOTTOM, DQEDGE_BOTTOMLEFT };
+
     GetBitContext *gb = &v->s.gb;
     VC1SimplePictCtx *simple_pict = (VC1SimplePictCtx*)v->pict;
     int pqdiff;
 
     //variable size
-    if (v->dquant != 2) {
+    if (v->dquant == 1) {
         v->dquantfrm = get_bits1(gb);
         if (!v->dquantfrm)
             return 0;
 
-        simple_pict->dquant_inframe = 1;
         v->dqprofile = get_bits(gb, 2);
         switch (v->dqprofile) {
         case DQPROFILE_SINGLE_EDGE:
-        case DQPROFILE_DOUBLE_EDGES:
             v->dqsbedge = get_bits(gb, 2);
+            simple_pict->dqedge = dqsbedge[v->dqsbedge];
+            break;
+        case DQPROFILE_DOUBLE_EDGE:
+            v->dqsbedge = get_bits(gb, 2);
+            simple_pict->dqedge = dqdbedge[v->dqsbedge];
             break;
         case DQPROFILE_ALL_MBS:
             v->dqbilevel = get_bits1(gb);
+            simple_pict->dqedge = v->dqbilevel ? DQEDGE_DQBILEVEL | DQEDGE_ALL_MBS : DQEDGE_ALL_MBS;
             if (!v->dqbilevel) {
                 v->halfpq = 0;
                 return 0;
@@ -255,14 +262,15 @@ static int vop_dquant_decoding(VC1Context *v)
         default:
             break; //Forbidden ?
         }
+    } else {
+        simple_pict->dqedge = DQEDGE_LEFT | DQEDGE_TOP | DQEDGE_RIGHT | DQEDGE_BOTTOM;
     }
 
     pqdiff = get_bits(gb, 3);
     if (pqdiff == 7)
-        v->altpq = get_bits(gb, 5);
+        v->altpq = simple_pict->altpquant = get_bits(gb, 5);
     else
-        v->altpq = v->pq + pqdiff + 1;
-    simple_pict->dquant_inframe = 1;
+        v->altpq = simple_pict->altpquant = v->pq + pqdiff + 1;
 
     return 0;
 }
@@ -526,6 +534,23 @@ void vc1_init_sequence_context_smc(VC1Context *v)
                  ff_vc1_low_rate_subblkpat_bits, 1, 1,
                  ff_vc1_low_rate_subblkpat_codes, 1, 1, 0);
 
+    if (v->mv_diff_vlc[0].table == NULL)
+        init_vlc(&v->mv_diff_vlc[0], 8, 73,
+                 ff_vc1_mv_diff_0_bits, 1, 1,
+                 ff_vc1_mv_diff_0_codes, 2, 2, 0);
+    if (v->mv_diff_vlc[1].table == NULL)
+        init_vlc(&v->mv_diff_vlc[1], 8, 73,
+                 ff_vc1_mv_diff_1_bits, 1, 1,
+                 ff_vc1_mv_diff_1_codes, 2, 2, 0);
+    if (v->mv_diff_vlc[2].table == NULL)
+        init_vlc(&v->mv_diff_vlc[2], 8, 73,
+                 ff_vc1_mv_diff_2_bits, 1, 1,
+                 ff_vc1_mv_diff_2_codes, 2, 2, 0);
+    if (v->mv_diff_vlc[3].table == NULL)
+        init_vlc(&v->mv_diff_vlc[3], 8, 73,
+                 ff_vc1_mv_diff_3_bits, 1, 1,
+                 ff_vc1_mv_diff_3_codes, 1, 1, 0);
+
     switch (v->seq->profile) {
     case PROFILE_SIMPLE:
         break;
@@ -565,9 +590,6 @@ void ff_vc1_init_picture_context_smc(VC1Context *v, int ptype)
     // MVRANGE defaults to [-64, 63.f] x [-32, 31.f]
     ((VC1SimplePictCtx*)*pict)->mvrange = 0;
 
-    // dquant_inframe is only evaluated when DQUANT is greater than 0
-    // dquant_inframe defaults to zero
-    ((VC1SimplePictCtx*)*pict)->dquant_inframe = 0;
     // ac_level_code_size doubles as first_mode3 and shall be
     // reset to zero at the beginning of a slice
     ((VC1SimplePictCtx*)*pict)->ac_level_code_size = 0;
@@ -596,9 +618,9 @@ void ff_vc1_init_picture_context_smc(VC1Context *v, int ptype)
         // RESPIC is only coded when MULTIRES is equal to 1
         // RESPIC defaults to zero
         ((VC1PPictCtx*)*pict)->respic = 0;
-        // DQUANTFRM is only coded when DQUANT is equal to 1
-        // DQUANTFRM defaults to zero
-        ((VC1PPictCtx*)*pict)->dquantfrm = 0;
+        // VOPDQUANT is only coded when DQUANT is not equal to 0
+        // by default there is no Macroblock Quantization
+        ((VC1PPictCtx*)*pict)->dqedge = DQEDGE_NONE;
         // TTFRM is only coded when VSTRANSFORM is equal to 1
         // TTFRM defaults to 8x8 Transform
         ((VC1PPictCtx*)*pict)->tt = TT_8x8_new |     // Transform Type: 8x8
@@ -609,9 +631,9 @@ void ff_vc1_init_picture_context_smc(VC1Context *v, int ptype)
         break;
 
     case AV_PICTURE_TYPE_B:
-        // DQUANTFRM is only coded when DQUANT is equal to 1
-        // DQUANTFRM defaults to zero
-        ((VC1BPictCtx*)*pict)->dquantfrm = 0;
+        // VOPDQUANT is only coded when DQUANT is not equal to 0
+        // by default there is no Macroblock Quantization
+        ((VC1PPictCtx*)*pict)->dqedge = DQEDGE_NONE;
         // TTFRM is only coded when VSTRANSFORM is equal to 1
         // TTFRM defaults to 8x8 Transform
         ((VC1BPictCtx*)*pict)->tt = TT_8x8_new |     // Transform Type: 8x8
@@ -639,6 +661,7 @@ void vc1_update_picture_context_smc(VC1Context *v)
 
     //PQUANT
     v->mbctx.pquant = simple_pict->pquant;
+
     v->mbctx.ttmb_vlc = &v->ttmb_vlc[(simple_pict->pquant > 4) + (simple_pict->pquant > 12)];
     v->mbctx.ttblk_vlc = &v->ttblk_vlc[(simple_pict->pquant > 4) + (simple_pict->pquant > 12)];
     v->mbctx.subblkpat_vlc = &v->subblkpat_vlc[(simple_pict->pquant > 4) + (simple_pict->pquant > 12)];
@@ -674,6 +697,23 @@ void vc1_update_picture_context_smc(VC1Context *v)
         simple_pict->zz_8x8[1] = (const int8_t(*)[64])ff_vc1_inter_8x8_scan_zz_table;
         simple_pict->zz_8x8[2] = (const int8_t(*)[64])ff_vc1_inter_8x8_scan_zz_table;
     }
+
+    // MVRANGE
+    v->mbctx.mvrange = simple_pict->mvrange;
+
+    // MVMODE
+    if (v->pict->ptype == AV_PICTURE_TYPE_P) {
+        v->mbctx.use_intensity_comp = p_pict->mvmode == MV_PMODE_INTENSITY_COMP;
+        v->mbctx.mvmode = p_pict->mvmode == MV_PMODE_INTENSITY_COMP ? p_pict->mvmode2 : p_pict->mvmode;
+    } else if (v->pict->ptype == AV_PICTURE_TYPE_B) {
+        v->mbctx.mvmode = b_pict->mvmode;
+    }
+
+    // MVTAB
+    if (v->pict->ptype == AV_PICTURE_TYPE_P)
+        v->mbctx.mv_diff_vlc = &v->mv_diff_vlc[p_pict->mvtab];
+    else if (v->pict->ptype == AV_PICTURE_TYPE_B)
+        v->mbctx.mv_diff_vlc = &v->mv_diff_vlc[b_pict->mvtab];
 
     // CBPTAB
     v->mbctx.cbpcy_vlc = &v->new_cbpcy_vlc[simple_pict->cbptab];
@@ -1476,14 +1516,13 @@ int ff_vc1_decode_picture_header(VC1Context *v, GetBitContext *gb)
                "Imode: %i, Invert: %i\n", status>>1, status&1);
 
         /* Hopefully this is correct for P-frames */
-        v->s.mv_table_index = get_bits(gb, 2); //but using ff_vc1_ tables
+        v->s.mv_table_index = p_pict->mvtab = get_bits(gb, 2); // MVTAB
         v->cbptab = p_pict->cbptab = get_bits(gb, 2); // CBPTAB
         v->cbpcy_vlc = &ff_vc1_cbpcy_p_vlc[v->cbptab];
 
         if (v->dquant) {
             av_log(v->s.avctx, AV_LOG_DEBUG, "VOP DQuant info\n");
             vop_dquant_decoding(v);
-            p_pict->dquantfrm = v->dquantfrm;
         }
 
         if (simple_seq->vstransform) {
@@ -1522,14 +1561,13 @@ int ff_vc1_decode_picture_header(VC1Context *v, GetBitContext *gb)
         av_log(v->s.avctx, AV_LOG_DEBUG, "MB Skip plane encoding: "
                "Imode: %i, Invert: %i\n", status>>1, status&1);
 
-        v->s.mv_table_index = get_bits(gb, 2);
+        v->s.mv_table_index = b_pict->mvtab = get_bits(gb, 2); // MVTAB
         v->cbptab = b_pict->cbptab = get_bits(gb, 2); // CBPTAB
         v->cbpcy_vlc        = &ff_vc1_cbpcy_p_vlc[v->cbptab];
 
         if (v->dquant) {
             av_log(v->s.avctx, AV_LOG_DEBUG, "VOP DQuant info\n");
             vop_dquant_decoding(v);
-            b_pict->dquantfrm = v->dquantfrm;
         }
 
         if (simple_seq->vstransform) {
