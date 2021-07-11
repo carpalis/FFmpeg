@@ -527,7 +527,7 @@ typedef struct VC1AdvPictCtx {
 
 typedef struct VC1StoredBlkCtx {
     uint8_t btype;
-    int8_t is_coded;
+    uint8_t is_coded;
     int16_t dc_pred;
     int16_t ac_pred_top[7];
     int16_t ac_pred_left[7];
@@ -628,10 +628,9 @@ typedef struct VC1MBCtx {
     uint8_t rnd;
     uint8_t *edge_emu_buffer;
     uint8_t *ref[COMPONENT_MAX];
-    uint8_t (*ic_lut)[256];
     void (*put_pixels_bicubic_16x16[16])(uint8_t*, const uint8_t*, ptrdiff_t, int);
-    void (*put_pixels_bilin_16x16[11])(uint8_t*, const uint8_t*, ptrdiff_t, int);
-    void (*put_no_rnd_pixels_bilin_16x16[11])(uint8_t*, const uint8_t*, ptrdiff_t, int);
+    void (*put_pixels_bilin[16])(uint8_t*, const uint8_t*, ptrdiff_t, int);
+    void (*put_pixels_bicubic_8x8[16])(uint8_t*, const uint8_t*, ptrdiff_t, int);
 } VC1MBCtx;
 
 typedef struct VC1IMBCtx {
@@ -676,10 +675,9 @@ typedef struct VC1IMBCtx {
     uint8_t rnd;
     uint8_t *edge_emu_buffer;
     uint8_t *ref[COMPONENT_MAX];
-    uint8_t (*ic_lut)[256];
     void (*put_pixels_bicubic_16x16[16])(uint8_t*, const uint8_t*, ptrdiff_t, int);
-    void (*put_pixels_bilin_16x16[11])(uint8_t*, const uint8_t*, ptrdiff_t, int);
-    void (*put_no_rnd_pixels_bilin_16x16[11])(uint8_t*, const uint8_t*, ptrdiff_t, int);
+    void (*put_pixels_bilin[16])(uint8_t*, const uint8_t*, ptrdiff_t, int);
+    void (*put_pixels_bicubic_8x8[16])(uint8_t*, const uint8_t*, ptrdiff_t, int);
 } VC1IMBCtx;
 
 typedef struct VC1PMBCtx {
@@ -724,10 +722,9 @@ typedef struct VC1PMBCtx {
     uint8_t rnd;
     uint8_t *edge_emu_buffer;
     uint8_t *ref[COMPONENT_MAX];
-    uint8_t *ic_lut[COMPONENT_TYPE_MAX];
     void (*put_pixels_bicubic_16x16[16])(uint8_t*, const uint8_t*, ptrdiff_t, int);
-    void (*put_pixels_bilin_16x16[11])(uint8_t*, const uint8_t*, ptrdiff_t, int);
-    void (*put_no_rnd_pixels_bilin_16x16[11])(uint8_t*, const uint8_t*, ptrdiff_t, int);
+    void (*put_pixels_bilin[16])(uint8_t*, const uint8_t*, ptrdiff_t, int);
+    void (*put_pixels_bicubic_8x8[16])(uint8_t*, const uint8_t*, ptrdiff_t, int);
 } VC1PMBCtx;
 
 typedef struct VC1MCCtx {
@@ -739,7 +736,7 @@ typedef struct VC1MCCtx {
     uint8_t *dest;
     uint8_t *ref;
     uint8_t *edge_emu_buffer;
-    uint8_t *ic_lut[COMPONENT_TYPE_MAX];
+    uint8_t *ic_lut;
     ptrdiff_t stride;
     int16_t replication_edge[MV_DIR_MAX];
     uint8_t ctype;

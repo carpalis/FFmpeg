@@ -349,9 +349,17 @@ void ff_vc1_decode_chroma_mv(VC1PMBCtx *mbctx,
             break;
 
         default:
+            curr_sblkctx[4].btype = BLOCK_INTRA;
+            curr_sblkctx[5].btype = BLOCK_INTRA;
             return;
         }
     } else { /* 1-MV MVMODE */
+        if (curr_sblkctx[0].btype == BLOCK_INTRA) {
+            curr_sblkctx[4].btype = BLOCK_INTRA;
+            curr_sblkctx[5].btype = BLOCK_INTRA;
+            return;
+        }
+
         chroma_mv[MV_X] = curr_sblkctx[0].mv[MV_CTX_FORWARD][MV_X];
         chroma_mv[MV_Y] = curr_sblkctx[0].mv[MV_CTX_FORWARD][MV_Y];
     }
@@ -365,6 +373,9 @@ void ff_vc1_decode_chroma_mv(VC1PMBCtx *mbctx,
         if (chroma_mv[MV_Y] & 1)
             chroma_mv[MV_Y] += chroma_mv[MV_Y] < 0 ? 1 : -1;
     }
+
+    curr_sblkctx[4].btype = BLOCK_INTER;
+    curr_sblkctx[5].btype = BLOCK_INTER;
 
     curr_sblkctx[4].mv[MV_CTX_FORWARD][MV_X] =
     curr_sblkctx[5].mv[MV_CTX_FORWARD][MV_X] =

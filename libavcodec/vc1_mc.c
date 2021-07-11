@@ -146,7 +146,7 @@ static int get_luma_mv(VC1Context *v, int dir, int16_t *tx, int16_t *ty)
     return opp_count;
 }
 
-static av_always_inline int get_chroma_mv(VC1Context *v, int dir, int16_t *tx, int16_t *ty)
+static int get_chroma_mv(VC1Context *v, int dir, int16_t *tx, int16_t *ty)
 {
     MpegEncContext *s = &v->s;
     int idx = !v->mb_type[0][s->block_index[0]] |
@@ -187,7 +187,10 @@ void ff_vc1_motion_compensation(VC1MCCtx *mcctx, VC1InterBlkCtx *blkctx)
     int dxy = ((refoffset_qpel_y & 3) << 2) | (refoffset_qpel_x & 3);
     uint8_t *ref = mcctx->ref + refoffset_y * mcctx->stride + refoffset_x;
 
-    if (!mcctx->ref)
+    if (blkctx->btype == BLOCK_INTRA)
+        return;
+
+    if (!mcctx->ref) /* missing reference frame */
         return;
 
     if (mcctx->use_intensity_comp ||
@@ -225,7 +228,7 @@ void ff_vc1_motion_compensation(VC1MCCtx *mcctx, VC1InterBlkCtx *blkctx)
 
         if (mcctx->use_intensity_comp)
             vc1_intensity_comp(mcctx->edge_emu_buffer,
-                               mcctx->ic_lut[mcctx->ctype],
+                               mcctx->ic_lut,
                                block_w,
                                block_h,
                                mcctx->stride);
